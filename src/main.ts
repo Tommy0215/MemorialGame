@@ -1,5 +1,7 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
+import { createBuilding, createFloor } from "./environment";
+import { resolveCollisions } from "./collision";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
@@ -15,55 +17,36 @@ const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 let prevTime = performance.now();
 
+let canJump = true;
+let verticalVelocity = 0;
+const GRAVITY = 30;
+const JUMP_SPEED = 10;
+
 init();
 animate();
 
 function init(): void {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x1e1e1e);
+  scene.background = new THREE.Color(0x87ceeb);
 
   camera = new THREE.PerspectiveCamera(
     75,
     window.innerWidth / window.innerHeight,
-    1,
+    0.1,
     1000
   );
-  camera.position.y = 1.6; // approximate eye height
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
   document.body.appendChild(renderer.domElement);
 
-  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-  hemiLight.position.set(0, 20, 0);
-  scene.add(hemiLight);
-
-  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
-  dirLight.position.set(5, 10, 7.5);
-  scene.add(dirLight);
-
-  // Floor
-  const floorGeometry = new THREE.PlaneGeometry(100, 100);
-  const floorMaterial = new THREE.MeshStandardMaterial({ color: 0x202020 });
-  const floor = new THREE.Mesh(floorGeometry, floorMaterial);
-  floor.rotation.x = -Math.PI / 2;
-  floor.receiveShadow = true;
-  scene.add(floor);
-
-  // Simple obstacles
-  const boxGeometry = new THREE.BoxGeometry(1, 2, 1);
-  const boxMaterial = new THREE.MeshStandardMaterial({ color: 0x00ff88 });
-  for (let i = 0; i < 12; i++) {
-    const box = new THREE.Mesh(boxGeometry, boxMaterial);
-    box.position.set(
-      (Math.random() - 0.5) * 40,
-      1,
-      (Math.random() - 0.5) * 40
-    );
-    scene.add(box);
-  }
+  setupLights();
+  setupWorld();
 
   controls = new PointerLockControls(camera, document.body);
+  const controlsObject = getControlsObject();
+  scene.add(controlsObject);
+  controlsObject.position.y = 1.6;
 
   const onClick = () => {
     controls.lock();
@@ -87,6 +70,12 @@ function init(): void {
       case "ArrowRight":
       case "KeyD":
         moveRight = true;
+        break;
+      case "Space":
+        if (canJump) {
+          verticalVelocity = JUMP_SPEED;
+          canJump = false;
+        }
         break;
     }
   };
@@ -118,6 +107,35 @@ function init(): void {
   window.addEventListener("resize", onWindowResize);
 }
 
+function setupLights(): void {
+  const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+  hemiLight.position.set(0, 20, 0);
+  scene.add(hemiLight);
+
+  const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+  dirLight.position.set(5, 10, 7.5);
+  scene.add(dirLight);
+}
+
+function setupWorld(): void {
+  const floor = createFloor({
+    size: 100,
+    textureRepeat: 20,
+  });
+  scene.add(floor);
+
+  const mainBuilding = createBuilding({
+    position: new THREE.Vector3(0, 0, -20),
+    width: 12,
+    depth: 12,
+    height: 6,
+    wallThickness: 0.5,
+    wallColor: 0x888888,
+    accentColor: 0x5555ff,
+  });
+  scene.add(mainBuilding);
+}
+
 function animate(): void {
   requestAnimationFrame(animate);
 
@@ -142,8 +160,30 @@ function animate(): void {
   }
 
   if (controls.isLocked) {
-    controls.moveRight(-velocity.x * delta);
-    controls.moveForward(-velocity.z * delta);
+    const controlsObject = getControlsObject();
+
+    const stepX = -velocity.x * delta;
+    const stepZ = -velocity.z * delta;
+
+    if (stepX !== 0) {
+      controls.moveRight(stepX);
+    }
+
+    if (stepZ !== 0) {
+      controls.moveForward(stepZ);
+    }
+
+    verticalVelocity -= GRAVITY * delta;
+    controlsObject.position.y += verticalVelocity * delta;
+
+    resolveCollisions(controlsObject.position);
+
+    const groundHeight = 1.6;
+    if (controlsObject.position.y < groundHeight) {
+      controlsObject.position.y = groundHeight;
+      verticalVelocity = 0;
+      canJump = true;
+    }
   }
 
   prevTime = time;
@@ -155,4 +195,21 @@ function onWindowResize(): void {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.updateProjectionMatrix();
   renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function getControlsObject(): THREE.Object3D {
+  const anyControls = controls as unknown as {
+    getObject?: () => THREE.Object3D;
+    object?: THREE.Object3D;
+  };
+
+  if (anyControls.getObject) {
+    return anyControls.getObject();
+  }
+
+  if (anyControls.object) {
+    return anyControls.object;
+  }
+
+  throw new Error("PointerLockControls does not expose a controllable object.");
 }
