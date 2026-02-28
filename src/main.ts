@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
-import { createBuilding, createFloor } from "./environment";
+import { createFloor, createMuseum, createWallPainting, createPainting } from "./environment";
 import { resolveCollisions } from "./collision";
 
 let scene: THREE.Scene;
@@ -46,7 +46,8 @@ function init(): void {
   controls = new PointerLockControls(camera, document.body);
   const controlsObject = getControlsObject();
   scene.add(controlsObject);
-  controlsObject.position.y = 1.6;
+  controlsObject.position.set(0, 1.6, -30);
+  controlsObject.lookAt(new THREE.Vector3(0, 1.6, -41));
 
   const onClick = () => {
     controls.lock();
@@ -124,16 +125,47 @@ function setupWorld(): void {
   });
   scene.add(floor);
 
-  const mainBuilding = createBuilding({
-    position: new THREE.Vector3(0, 0, -20),
-    width: 12,
-    depth: 12,
+  const museumConfig = {
+    position: new THREE.Vector3(0, 0, -25),
+    width: 24,
+    depth: 32,
     height: 6,
     wallThickness: 0.5,
     wallColor: 0x888888,
     accentColor: 0x5555ff,
+  };
+
+  const museum = createMuseum(museumConfig);
+  scene.add(museum);
+
+  const museumCenter = museumConfig.position;
+
+  // Example paintings – replace `url` with your own image paths.
+  const leftWallPainting = createWallPainting({
+    url: "/images/paint.png",
+    museumPosition: museumCenter,
+    museumWidth: museumConfig.width,
+    museumDepth: museumConfig.depth,
+    wall: "left",
+    along: -6, // slide along the wall (negative is towards front, positive towards back)
+    centerHeight: 2.2,
+    width: 3,
+    height: 2,
   });
-  scene.add(mainBuilding);
+  scene.add(leftWallPainting);
+
+  const rightWallPainting = createWallPainting({
+    url: "/images/paint.png",
+    museumPosition: museumCenter,
+    museumWidth: museumConfig.width,
+    museumDepth: museumConfig.depth,
+    wall: "right",
+    along: -10,
+    centerHeight: 2.2,
+    width: 2.5,
+    height: 2,
+  });
+  scene.add(rightWallPainting);
 }
 
 function animate(): void {

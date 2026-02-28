@@ -16,6 +16,38 @@ export type BuildingConfig = {
   accentColor?: number;
 };
 
+export type MuseumConfig = {
+  position?: THREE.Vector3;
+  width?: number;
+  depth?: number;
+  height?: number;
+  wallThickness?: number;
+  wallColor?: number;
+  accentColor?: number;
+};
+
+export type PaintingConfig = {
+  url: string;
+  position: THREE.Vector3;
+  width?: number;
+  height?: number;
+  rotationY?: number;
+};
+
+export type WallSide = "left" | "right" | "front" | "back";
+
+export type WallPaintingConfig = {
+  url: string;
+  museumPosition: THREE.Vector3;
+  museumWidth: number;
+  museumDepth: number;
+  wall: WallSide;
+  along?: number; // offset along the wall in world units
+  centerHeight?: number; // height of the painting center above the floor
+  width?: number;
+  height?: number;
+};
+
 export function createFloor(config: FloorConfig = {}): THREE.Mesh {
   const size = config.size ?? 100;
   const textureRepeat = config.textureRepeat ?? 20;
@@ -113,6 +145,157 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
 
   group.position.copy(position);
   return group;
+}
+
+export function createMuseum(config: MuseumConfig = {}): THREE.Group {
+  const {
+    position = new THREE.Vector3(0, 0, 0),
+    width = 24,
+    depth = 32,
+    height = 6,
+    wallThickness = 0.5,
+    wallColor = 0x888888,
+    accentColor = 0x5555ff,
+  } = config;
+
+  const group = new THREE.Group();
+
+  // Outer shell using existing building helper
+  const shell = createBuilding({
+    width,
+    depth,
+    height,
+    wallThickness,
+    wallColor,
+    accentColor,
+  });
+  group.add(shell);
+
+  const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor });
+
+  // Central gallery divider
+  const centralWall = new THREE.Mesh(
+    new THREE.BoxGeometry(wallThickness, height - 1, depth - 4),
+    wallMaterial
+  );
+  centralWall.position.set(0, (height - 1) / 2, 0);
+  group.add(centralWall);
+  addCollidable(centralWall);
+
+  // Left short wall creating a side room
+  const leftShortWall = new THREE.Mesh(
+    new THREE.BoxGeometry(wallThickness, height - 1, depth * 0.4),
+    wallMaterial
+  );
+  leftShortWall.position.set(-width * 0.25, (height - 1) / 2, -depth * 0.3);
+  group.add(leftShortWall);
+  addCollidable(leftShortWall);
+
+  // Right short wall creating another side room
+  const rightShortWall = new THREE.Mesh(
+    new THREE.BoxGeometry(wallThickness, height - 1, depth * 0.4),
+    wallMaterial
+  );
+  rightShortWall.position.set(width * 0.25, (height - 1) / 2, depth * 0.1);
+  group.add(rightShortWall);
+  addCollidable(rightShortWall);
+
+  // A couple of pillars in the main hall
+  const pillarGeometry = new THREE.BoxGeometry(0.7, height, 0.7);
+  const pillar1 = new THREE.Mesh(pillarGeometry, wallMaterial);
+  pillar1.position.set(-width * 0.15, height / 2, -depth * 0.1);
+  group.add(pillar1);
+  addCollidable(pillar1);
+
+  const pillar2 = new THREE.Mesh(pillarGeometry, wallMaterial);
+  pillar2.position.set(width * 0.15, height / 2, -depth * 0.18);
+  group.add(pillar2);
+  addCollidable(pillar2);
+
+  group.position.copy(position);
+  return group;
+}
+
+export function createPainting(config: PaintingConfig): THREE.Mesh {
+  const { url, position, width = 2, height = 1.5, rotationY = 0 } = config;
+
+  const geometry = new THREE.PlaneGeometry(width, height);
+  const material = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    side: THREE.DoubleSide,
+  });
+
+  const painting = new THREE.Mesh(geometry, material);
+  painting.position.copy(position);
+  painting.rotation.y = rotationY;
+
+  const textureLoader = new THREE.TextureLoader();
+  textureLoader.load(
+    url,
+    (texture) => {
+      material.map = texture;
+      material.needsUpdate = true;
+    },
+    undefined,
+    () => {
+      // If loading fails, keep the plain white material so it still renders.
+    }
+  );
+
+  return painting;
+}
+
+export function createWallPainting(config: WallPaintingConfig): THREE.Mesh {
+  const {
+    url,
+    museumPosition,
+    museumWidth,
+    museumDepth,
+    wall,
+    along = 0,
+    centerHeight = 2.2,
+    width = 3,
+    height = 2,
+  } = config;
+
+  const epsilon = 0.26; // pull slightly off the wall to avoid z-fighting
+
+  let x = museumPosition.x;
+  let z = museumPosition.z;
+  let rotationY = 0;
+
+  switch (wall) {
+    case "left":
+      x = museumPosition.x - museumWidth / 2 + epsilon;
+      z = museumPosition.z + along;
+      rotationY = -Math.PI / 2;
+      break;
+    case "right":
+      x = museumPosition.x + museumWidth / 2 - epsilon;
+      z = museumPosition.z + along;
+      rotationY = Math.PI / 2;
+      break;
+    case "front":
+      z = museumPosition.z - museumDepth / 2 + epsilon;
+      x = museumPosition.x + along;
+      rotationY = 0;
+      break;
+    case "back":
+      z = museumPosition.z + museumDepth / 2 - epsilon;
+      x = museumPosition.x + along;
+      rotationY = Math.PI;
+      break;
+  }
+
+  const position = new THREE.Vector3(x, museumPosition.y + centerHeight, z);
+
+  return createPainting({
+    url,
+    position,
+    width,
+    height,
+    rotationY,
+  });
 }
 
 function createCheckerTexture(): THREE.CanvasTexture {
