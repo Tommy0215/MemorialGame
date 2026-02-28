@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
-import { createFloor, createMuseum, createWallPainting, createPainting } from "./environment";
+import { createFloor, createMuseum, createWallPainting } from "./environment";
 import { resolveCollisions } from "./collision";
 
 let scene: THREE.Scene;
@@ -13,6 +13,9 @@ let moveBackward = false;
 let moveLeft = false;
 let moveRight = false;
 
+let isRunning = false;
+let isSneaking = false;
+
 const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 let prevTime = performance.now();
@@ -21,6 +24,13 @@ let canJump = true;
 let verticalVelocity = 0;
 const GRAVITY = 30;
 const JUMP_SPEED = 10;
+
+const BASE_SPEED = 40.0;
+const RUN_MULTIPLIER = 1.7;
+const SNEAK_MULTIPLIER = 0.4;
+
+const STAND_HEIGHT = 1.6;
+const SNEAK_HEIGHT = 1.2;
 
 init();
 animate();
@@ -72,6 +82,12 @@ function init(): void {
       case "KeyD":
         moveRight = true;
         break;
+      case "KeyR":
+        isRunning = true;
+        break;
+      case "ShiftLeft":
+        isSneaking = true;
+        break;
       case "Space":
         if (canJump) {
           verticalVelocity = JUMP_SPEED;
@@ -98,6 +114,12 @@ function init(): void {
       case "ArrowRight":
       case "KeyD":
         moveRight = false;
+        break;
+      case "KeyR":
+        isRunning = false;
+        break;
+      case "ShiftLeft":
+        isSneaking = false;
         break;
     }
   };
@@ -182,7 +204,16 @@ function animate(): void {
   direction.x = Number(moveRight) - Number(moveLeft);
   direction.normalize();
 
-  const speed = 40.0;
+  let speed = BASE_SPEED;
+
+  const running = isRunning && moveForward && !isSneaking;
+  if (running) {
+    speed *= RUN_MULTIPLIER;
+  }
+
+  if (isSneaking) {
+    speed *= SNEAK_MULTIPLIER;
+  }
 
   if (moveForward || moveBackward) {
     velocity.z -= direction.z * speed * delta;
@@ -210,9 +241,16 @@ function animate(): void {
 
     resolveCollisions(controlsObject.position);
 
-    const groundHeight = 1.6;
-    if (controlsObject.position.y < groundHeight) {
-      controlsObject.position.y = groundHeight;
+    const targetHeight = isSneaking ? SNEAK_HEIGHT : STAND_HEIGHT;
+
+    if (verticalVelocity === 0) {
+      const lerpFactor = Math.min(10 * delta, 1);
+      controlsObject.position.y +=
+        (targetHeight - controlsObject.position.y) * lerpFactor;
+    }
+
+    if (controlsObject.position.y < targetHeight) {
+      controlsObject.position.y = targetHeight;
       verticalVelocity = 0;
       canJump = true;
     }
