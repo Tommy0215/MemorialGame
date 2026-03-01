@@ -23,5 +23,5 @@ wss.on("connection", (ws) => {
   });
 });
 
-console.log(`Multiplayer server running on ws://localhost:${PORT}`);
+console.log(`Multiplayer server running on ws://3.25.72.218:${PORT}`);
 

@@ -8,7 +8,7 @@ type RemotePlayer = {
   object: THREE.Object3D;
 };
 
-const WS_URL = "ws://3.107.180.174:8080";
+const WS_URL = "ws://3.25.72.218:8080";
 
 function generateClientId(): string {
   return `${Math.random().toString(16).slice(2)}-${Date.now().toString(16)}`;
