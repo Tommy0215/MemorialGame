@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
 import { createFloor, createMuseum, createWallPainting } from "./environment";
 import { resolveCollisions } from "./collision";
+import { createNetworkClient, type NetworkClient } from "./network";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
@@ -15,6 +16,8 @@ let moveRight = false;
 
 let isRunning = false;
 let isSneaking = false;
+
+let networkClient: NetworkClient | null = null;
 
 const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -58,6 +61,8 @@ function init(): void {
   scene.add(controlsObject);
   controlsObject.position.set(0, 1.6, -30);
   controlsObject.lookAt(new THREE.Vector3(0, 1.6, -41));
+
+  networkClient = createNetworkClient(scene);
 
   const onClick = () => {
     controls.lock();
@@ -253,6 +258,10 @@ function animate(): void {
       controlsObject.position.y = targetHeight;
       verticalVelocity = 0;
       canJump = true;
+    }
+
+    if (networkClient) {
+      networkClient.update(controlsObject, { isRunning, isSneaking });
     }
   }
 
