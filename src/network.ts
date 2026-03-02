@@ -101,6 +101,7 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
   const lastPosition = new THREE.Vector3();
   let lastRotationY = 0;
   let lastSent = 0;
+  const HEARTBEAT_INTERVAL = 1000; // send at least once per second
 
   return {
     update(localObject: THREE.Object3D, extra: { isRunning: boolean; isSneaking: boolean }) {
@@ -116,8 +117,10 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
 
       const movedEnough = lastPosition.distanceToSquared(pos) > 0.0001;
       const rotatedEnough = Math.abs(rotY - lastRotationY) > 0.001;
+      const heartbeatDue = now - lastSent > HEARTBEAT_INTERVAL;
 
-      if (!movedEnough && !rotatedEnough && now - lastSent < minIntervalMs) {
+      // send if: moved/rotated (and enough time passed) OR heartbeat is due
+      if (!heartbeatDue && !movedEnough && !rotatedEnough && now - lastSent < minIntervalMs) {
         return;
       }
 
