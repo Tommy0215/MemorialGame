@@ -18,7 +18,8 @@ const IP = process.env.IP || "0.0.0.0";
 const server = http.createServer((req, res) => {
   // Normalize the path
   let filePath = req.url === "/" ? "/index.html" : req.url;
-  filePath = path.join(process.cwd(), filePath);
+  // Serve from the 'dist' directory which contains the built/bundled assets
+  filePath = path.join(process.cwd(), "dist", filePath);
 
   fs.readFile(filePath, (err, data) => {
     if (err) {
@@ -58,13 +59,26 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  // report the address the server is actually bound to; on
-  // EC2 this will still be 0.0.0.0 but the log message is more
-  // informative when you set process.env.IP before launch.
+  // we bind to 0.0.0.0 so the server accepts connections on any
+  // interface. that means the address printed by `server.address()`
+  // will generally be "0.0.0.0" which isn't useful to clients –
+  // they need to use the host name or public IP of the instance.
+  // the optional IP environment variable can be used to override
+  // the displayed host if you know it ahead of time.
   const addr = server.address();
   let host = IP;
   if (addr && typeof addr === "object") {
-    host = addr.address === "0.0.0.0" ? IP : addr.address;
+    if (addr.address !== "0.0.0.0" && addr.address !== "::") {
+      host = addr.address;
+    }
   }
-  console.log(`Server running on http://${host}:${PORT}`);
+
+  if (host === "0.0.0.0" || host === "::") {
+    console.log(
+      `Server listening on port ${PORT} (bound to all interfaces). ` +
+        `Use your EC2 instance's public IP or domain to connect.`
+    );
+  } else {
+    console.log(`Server running on http://${host}:${PORT}`);
+  }
 });
