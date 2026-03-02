@@ -40,6 +40,18 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
   }
 
   if (socket) {
+    socket.addEventListener("open", () => {
+      console.log("[Network] WebSocket connected to", WS_URL);
+    });
+
+    socket.addEventListener("error", (event) => {
+      console.error("[Network] WebSocket error:", event);
+    });
+
+    socket.addEventListener("close", () => {
+      console.log("[Network] WebSocket closed");
+    });
+
     socket.addEventListener("message", (event: MessageEvent<string>) => {
       let data: any;
       try {
@@ -54,6 +66,8 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
 
       const { id, position, rotationY, isRunning, isSneaking } = data;
       if (!position) return;
+
+      console.log("[Network] Received remote player update:", id, position);
 
       let remote = remotePlayers.get(id);
       if (!remote) {
@@ -122,8 +136,9 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
 
       try {
         socket.send(JSON.stringify(payload));
-      } catch {
-        // ignore send errors
+        console.log("[Network] Sent update:", payload.position);
+      } catch (e) {
+        console.error("[Network] Failed to send:", e);
       }
     },
   };
