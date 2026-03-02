@@ -1,13 +1,20 @@
 <!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>My first three.js app</title>
-    <style>
-      body { margin: 0; }
-    </style>
-  </head>
-  <body>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+<html>
+<body>
+<h1>Multiplayer Test</h1>
+
+<script>
+const ws = new WebSocket("ws://3.25.72.218:8080");
+
+ws.onopen = () => {
+  console.log("Connected!");
+  ws.send("Hello from browser!");
+};
+
+ws.onmessage = (msg) => {
+  console.log("Received:", msg.data);
+};
+</script>
+
+</body>
 </html>

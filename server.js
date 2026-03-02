@@ -1,27 +1,42 @@
-// Simple WebSocket relay server for multiplayer (ESM-friendly)
-// Run with:
-//   npm install ws
-//   node server.js
+import http from "http";
+import { WebSocketServer } from "ws";
+import fs from "fs";
+import path from "path";
 
-import WebSocket, { WebSocketServer } from "ws";
+const PORT = 8080;
 
-const PORT = process.env.PORT || 8080;
-const wss = new WebSocketServer({ port: PORT });
+// 1️⃣ Create HTTP server
+const server = http.createServer((req, res) => {
+  if (req.url === "/") {
+    const filePath = path.resolve("./index.html");
+    const html = fs.readFileSync(filePath);
+    res.writeHead(200, { "Content-Type": "text/html" });
+    res.end(html);
+  } else {
+    res.writeHead(404);
+    res.end();
+  }
+});
+
+// 2️⃣ Attach WebSocket to same server
+const wss = new WebSocketServer({ server });
 
 wss.on("connection", (ws) => {
+  console.log("Player connected");
+
   ws.on("message", (data) => {
-    // Broadcast any state message to all other clients
     for (const client of wss.clients) {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
+      if (client !== ws && client.readyState === 1) {
         client.send(data);
       }
     }
   });
 
   ws.on("close", () => {
-    // Clients clean themselves up when they stop receiving updates
+    console.log("Player disconnected");
   });
 });
 
-console.log(`Multiplayer server running on ws://3.25.72.218:${PORT}`);
-
+server.listen(PORT, "0.0.0.0", () => {
+  console.log(`Server running on http://3.25.72.218:${PORT}`);
+});
