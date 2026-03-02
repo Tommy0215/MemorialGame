@@ -8,7 +8,20 @@ type RemotePlayer = {
   object: THREE.Object3D;
 };
 
-const WS_URL = "ws://3.25.72.218:8080";
+// derive the websocket endpoint from whatever host the
+// page was served from.  this avoids hard‑coding an IP and
+// works whether you access the site by IP address, domain or
+// localhost.  it also respects secure (wss) vs unsecure (ws)
+// protocols.
+const WS_URL = (() => {
+  if (typeof window !== "undefined") {
+    const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${proto}//${window.location.host}`; // includes port if any
+  }
+  // fallback for non-browser environments (shouldn't really
+  // happen, but keeps the type system happy).
+  return "ws://localhost:8080";
+})();
 
 function generateClientId(): string {
   return `${Math.random().toString(16).slice(2)}-${Date.now().toString(16)}`;

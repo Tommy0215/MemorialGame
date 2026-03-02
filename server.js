@@ -3,8 +3,16 @@ import fs from "fs";
 import path from "path";
 import { WebSocketServer } from "ws";
 
-const PORT = 8080;
-const IP = "3.25.72.218";
+// allow deployment environments to override the port and
+// don't hard‑code the public IP address.  listening on
+// "0.0.0.0" below ensures the server accepts connections
+// on any interface (required on EC2).
+const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
+// IP is only used for logging; we cannot reliably know the
+// machine's external address from within the process, so fall
+// back to a placeholder.  you can optionally set
+// process.env.IP when starting the server.
+const IP = process.env.IP || "0.0.0.0";
 
 // HTTP server to serve static files
 const server = http.createServer((req, res) => {
@@ -50,5 +58,13 @@ wss.on("connection", (ws) => {
 });
 
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Server running on http://${IP}:${PORT}`);
+  // report the address the server is actually bound to; on
+  // EC2 this will still be 0.0.0.0 but the log message is more
+  // informative when you set process.env.IP before launch.
+  const addr = server.address();
+  let host = IP;
+  if (addr && typeof addr === "object") {
+    host = addr.address === "0.0.0.0" ? IP : addr.address;
+  }
+  console.log(`Server running on http://${host}:${PORT}`);
 });
