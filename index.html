@@ -1,20 +1,17 @@
 <!DOCTYPE html>
-<html>
-<body>
-<h1>Multiplayer Test</h1>
-
-<script>
-const ws = new WebSocket("ws://3.25.72.218:8080");
-
-ws.onopen = () => {
-  console.log("Connected!");
-  ws.send("Hello from browser!");
-};
-
-ws.onmessage = (msg) => {
-  console.log("Received:", msg.data);
-};
-</script>
-
-</body>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>My Three.js Multiplayer Game</title>
+    <style>
+      body { margin: 0; overflow: hidden; }
+      canvas { display: block; }
+    </style>
+  </head>
+  <body>
+    <!-- Your game will append the canvas here -->
+    
+    <!-- Main game script -->
+    <script type="module" src="/src/main.js"></script>
+  </body>
 </html>
