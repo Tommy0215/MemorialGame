@@ -41,14 +41,49 @@ const server = http.createServer((req, res) => {
 // WebSocket server attached to the same HTTP server
 const wss = new WebSocketServer({ server });
 
+// keep a list of all red blocks that have been spawned so far. when a new
+// client connects we replay these to them so the world isn't empty. the array
+// isn’t cleared when a player disconnects – blocks are permanent for the
+// duration of the server process.
+const spawnedBlocks = [];
+
+
 wss.on("connection", (ws) => {
   console.log("Player connected");
 
+  // replay any blocks that were created before this client joined
+  for (const blk of spawnedBlocks) {
+    try {
+      ws.send(JSON.stringify({ type: "spawnBlock", position: blk.position }));
+    } catch (e) {
+      // if the socket is already closed, ignore
+    }
+  }
+
   ws.on("message", (data) => {
+    const text = data.toString();
+    console.log("[Server] Received message:", text.substring(0, 100));
+
+    let msg;
+    try {
+      msg = JSON.parse(text);
+    } catch (e) {
+      // not JSON, just ignore/broadcast as before
+      msg = null;
+    }
+
+    // if this is a request to spawn a block, remember it so new players can
+    // be informed later. we don't bother deduplicating; the client that sent
+    // the message already creates the cube locally.
+    if (msg && msg.type === "spawnBlock" && msg.position) {
+      spawnedBlocks.push({ position: msg.position });
+    }
+
     // Broadcast to all other clients
     for (const client of wss.clients) {
       if (client !== ws && client.readyState === 1) {
-        client.send(data);
+        client.send(text);
+        console.log("[Server] Broadcasted to other client");
       }
     }
   });

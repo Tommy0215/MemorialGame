@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
-import { createFloor, createMuseum, createWallPainting } from "./environment";
+import { createFloor, createMuseum, fillMuseumWallsWithPaintings } from "./environment";
 import { resolveCollisions } from "./collision";
 import { createNetworkClient, type NetworkClient } from "./network";
 
@@ -27,6 +27,16 @@ let canJump = true;
 let verticalVelocity = 0;
 const GRAVITY = 30;
 const JUMP_SPEED = 10;
+
+// create a simple red cube and add to scene at a given position
+function createRedBlock(position: THREE.Vector3): THREE.Mesh {
+  const geometry = new THREE.BoxGeometry(1, 1, 1);
+  const material = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+  const block = new THREE.Mesh(geometry, material);
+  block.position.copy(position);
+  scene.add(block);
+  return block;
+}
 
 const BASE_SPEED = 40.0;
 const RUN_MULTIPLIER = 1.7;
@@ -99,6 +109,15 @@ function init(): void {
           canJump = false;
         }
         break;
+      case "KeyF":
+        // spawn a red block at current player position
+        const spawnPos = controlsObject.position.clone();
+        spawnPos.y += 1; // float slightly above feet
+        createRedBlock(spawnPos);
+        if (networkClient) {
+          networkClient.spawnBlock(spawnPos);
+        }
+        break;
     }
   };
 
@@ -160,6 +179,8 @@ function setupWorld(): void {
     wallThickness: 0.5,
     wallColor: 0x888888,
     accentColor: 0x5555ff,
+    // no interior partitions, pillars, etc.
+    includeInteriorWalls: false,
   };
 
   const museum = createMuseum(museumConfig);
@@ -167,32 +188,32 @@ function setupWorld(): void {
 
   const museumCenter = museumConfig.position;
 
-  // Example paintings – replace `url` with your own image paths.
-  const leftWallPainting = createWallPainting({
-    url: "/images/paint.png",
-    museumPosition: museumCenter,
-    museumWidth: museumConfig.width,
-    museumDepth: museumConfig.depth,
-    wall: "left",
-    along: -6, // slide along the wall (negative is towards front, positive towards back)
-    centerHeight: 2.2,
-    width: 3,
-    height: 2,
-  });
-  scene.add(leftWallPainting);
+  // populate every wall with paintings using the helper
+  // when the museum uses the default front "gate" geometry there is
+  // a 30%‑width opening in the centre; exclude a range there so no
+  // paintings float in the doorway.
+  // calculate an exclusion that leaves some breathing room
+  // (prevent paintings from straddling the doorway).
+  const halfOpening = museumConfig.width * 0.15; // base opening half-width
+  const paintW = 3;
+  const pad = 0.5;
+  const frontGateHalf = halfOpening + paintW / 2 + pad;
 
-  const rightWallPainting = createWallPainting({
-    url: "/images/paint.png",
+  const wallPaintings = fillMuseumWallsWithPaintings({
     museumPosition: museumCenter,
     museumWidth: museumConfig.width,
     museumDepth: museumConfig.depth,
-    wall: "right",
-    along: -10,
+    url: "/images/paint.png",
+    paintingWidth: paintW,
+    paintingHeight: 2,
     centerHeight: 2.2,
-    width: 2.5,
-    height: 2,
+    padding: pad,
+    excludeAlongRanges: {
+      front: [{ start: -frontGateHalf, end: frontGateHalf }],
+    },
+    // optional: restrict to certain walls using `walls: ["left","front"]`
   });
-  scene.add(rightWallPainting);
+  wallPaintings.forEach((p: THREE.Mesh) => scene.add(p));
 }
 
 function animate(): void {

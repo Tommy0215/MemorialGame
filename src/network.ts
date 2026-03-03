@@ -2,6 +2,12 @@ import * as THREE from "three";
 
 export interface NetworkClient {
   update(localObject: THREE.Object3D, extra: { isRunning: boolean; isSneaking: boolean }): void;
+  /**
+   * Inform the server that the local player has created a red block at the
+   * given position.  The server will broadcast to other clients, which will
+   * also add the block to their scene.
+   */
+  spawnBlock(position: THREE.Vector3): void;
 }
 
 type RemotePlayer = {
@@ -13,13 +19,18 @@ type RemotePlayer = {
 // works whether you access the site by IP address, domain or
 // localhost.  it also respects secure (wss) vs unsecure (ws)
 // protocols.
+// always try to connect to the game server port 8080.  During development
+// the page may be served by Vite on 3000, so relying on
+// `window.location.host` would attempt to talk back to 3000 where no
+// WebSocket server is listening.  Using a fixed port makes multiplayer work
+// regardless of whether the client is served from the same process.
 const WS_URL = (() => {
   if (typeof window !== "undefined") {
     const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-    return `${proto}//${window.location.host}`; // includes port if any
+    const host = window.location.hostname;
+    const port = 8080; // must match server.js
+    return `${proto}//${host}:${port}`;
   }
-  // fallback for non-browser environments (shouldn't really
-  // happen, but keeps the type system happy).
   return "ws://localhost:8080";
 })();
 
@@ -47,6 +58,9 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
     socket.addEventListener("error", (event) => {
       console.error("[Network] WebSocket error:", event);
     });
+    socket.addEventListener("close", (event) => {
+      console.log("[Network] WebSocket closed", event);
+    });
 
     socket.addEventListener("close", () => {
       console.log("[Network] WebSocket closed");
@@ -60,40 +74,55 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
         return;
       }
 
-      if (!data || data.id === clientId || data.type !== "state") {
+      if (!data || data.id === clientId) {
         return;
       }
 
-      const { id, position, rotationY, isRunning, isSneaking } = data;
-      if (!position) return;
+      if (data.type === "state") {
+        const { id, position, rotationY, isRunning, isSneaking } = data;
+        if (!position) return;
 
-      console.log("[Network] Received remote player update:", id, position);
+        console.log("[Network] Received remote player update:", id, position);
 
-      let remote = remotePlayers.get(id);
-      if (!remote) {
-        const geometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-        const material = new THREE.MeshStandardMaterial({
-          color: isRunning ? 0x00ff88 : 0x00aaff,
-        });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.castShadow = true;
-        scene.add(mesh);
-        remote = { object: mesh };
-        remotePlayers.set(id, remote);
+        let remote = remotePlayers.get(id);
+        if (!remote) {
+          const geometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+          const material = new THREE.MeshStandardMaterial({
+            color: isRunning ? 0x00ff88 : 0x00aaff,
+          });
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.castShadow = true;
+          scene.add(mesh);
+          remote = { object: mesh };
+          remotePlayers.set(id, remote);
+        }
+
+        const obj = remote.object;
+        obj.position.set(position.x, position.y, position.z);
+        obj.rotation.y = rotationY ?? obj.rotation.y;
+
+        const mesh = obj as THREE.Mesh;
+        const mat = mesh.material as THREE.MeshStandardMaterial;
+        if (isSneaking) {
+          mat.color.setHex(0xffaa00);
+        } else if (isRunning) {
+          mat.color.setHex(0x00ff88);
+        } else {
+          mat.color.setHex(0x00aaff);
+        }
+        return;
       }
 
-      const obj = remote.object;
-      obj.position.set(position.x, position.y, position.z);
-      obj.rotation.y = rotationY ?? obj.rotation.y;
-
-      const mesh = obj as THREE.Mesh;
-      const mat = mesh.material as THREE.MeshStandardMaterial;
-      if (isSneaking) {
-        mat.color.setHex(0xffaa00);
-      } else if (isRunning) {
-        mat.color.setHex(0x00ff88);
-      } else {
-        mat.color.setHex(0x00aaff);
+      if (data.type === "spawnBlock") {
+        const { position } = data;
+        if (position) {
+          const geom = new THREE.BoxGeometry(1, 1, 1);
+          const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+          const cube = new THREE.Mesh(geom, mat);
+          cube.position.set(position.x, position.y, position.z);
+          scene.add(cube);
+        }
+        return;
       }
     });
   }
@@ -142,6 +171,21 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
         console.log("[Network] Sent update:", payload.position);
       } catch (e) {
         console.error("[Network] Failed to send:", e);
+      }
+    },
+
+    spawnBlock(position: THREE.Vector3) {
+      if (!socket || socket.readyState !== WebSocket.OPEN) return;
+      const payload = {
+        type: "spawnBlock",
+        id: clientId,
+        position: { x: position.x, y: position.y, z: position.z },
+      };
+      try {
+        socket.send(JSON.stringify(payload));
+        console.log("[Network] Sent spawnBlock:", payload.position);
+      } catch (e) {
+        console.error("[Network] Failed to send spawnBlock:", e);
       }
     },
   };

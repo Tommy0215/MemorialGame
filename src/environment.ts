@@ -14,6 +14,12 @@ export type BuildingConfig = {
   wallThickness?: number;
   wallColor?: number;
   accentColor?: number;
+  /**
+   * Set to `false` to build a shell without any walls. Useful for
+   * creating open spaces or for debugging. Defaults to `true` (walls
+   * are included).
+   */
+  walls?: boolean;
 };
 
 export type MuseumConfig = {
@@ -24,6 +30,11 @@ export type MuseumConfig = {
   wallThickness?: number;
   wallColor?: number;
   accentColor?: number;
+  /**
+   * If set to `false`, only the outer shell is built.  The central
+   * divider, side rooms, and pillars are omitted.  Defaults to `true`.
+   */
+  includeInteriorWalls?: boolean;
 };
 
 export type PaintingConfig = {
@@ -74,6 +85,7 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
     wallThickness = 0.5,
     wallColor = 0x888888,
     accentColor = 0x5555ff,
+    walls = true,
   } = config;
 
   const group = new THREE.Group();
@@ -81,53 +93,56 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
   const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor });
   const accentMaterial = new THREE.MeshStandardMaterial({ color: accentColor });
 
-  const frontLeftWall = new THREE.Mesh(
-    new THREE.BoxGeometry(width * 0.35, height, wallThickness),
-    wallMaterial
-  );
-  frontLeftWall.position.set(-width * 0.325, height / 2, -depth / 2);
-  group.add(frontLeftWall);
-  addCollidable(frontLeftWall);
+  // outer shell walls (conditional)
+  if (walls) {
+    const frontLeftWall = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.35, height, wallThickness),
+      wallMaterial
+    );
+    frontLeftWall.position.set(-width * 0.325, height / 2, -depth / 2);
+    group.add(frontLeftWall);
+    addCollidable(frontLeftWall);
 
-  const frontRightWall = new THREE.Mesh(
-    new THREE.BoxGeometry(width * 0.35, height, wallThickness),
-    wallMaterial
-  );
-  frontRightWall.position.set(width * 0.325, height / 2, -depth / 2);
-  group.add(frontRightWall);
-  addCollidable(frontRightWall);
+    const frontRightWall = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.35, height, wallThickness),
+      wallMaterial
+    );
+    frontRightWall.position.set(width * 0.325, height / 2, -depth / 2);
+    group.add(frontRightWall);
+    addCollidable(frontRightWall);
 
-  const frontTop = new THREE.Mesh(
-    new THREE.BoxGeometry(width * 0.3, height * 0.4, wallThickness),
-    wallMaterial
-  );
-  frontTop.position.set(0, height * 0.8, -depth / 2);
-  group.add(frontTop);
-  addCollidable(frontTop);
+    const frontTop = new THREE.Mesh(
+      new THREE.BoxGeometry(width * 0.3, height * 0.4, wallThickness),
+      wallMaterial
+    );
+    frontTop.position.set(0, height * 0.8, -depth / 2);
+    group.add(frontTop);
+    addCollidable(frontTop);
 
-  const backWall = new THREE.Mesh(
-    new THREE.BoxGeometry(width, height, wallThickness),
-    wallMaterial
-  );
-  backWall.position.set(0, height / 2, depth / 2);
-  group.add(backWall);
-  addCollidable(backWall);
+    const backWall = new THREE.Mesh(
+      new THREE.BoxGeometry(width, height, wallThickness),
+      wallMaterial
+    );
+    backWall.position.set(0, height / 2, depth / 2);
+    group.add(backWall);
+    addCollidable(backWall);
 
-  const leftWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height, depth),
-    wallMaterial
-  );
-  leftWall.position.set(-width / 2, height / 2, 0);
-  group.add(leftWall);
-  addCollidable(leftWall);
+    const leftWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, height, depth),
+      wallMaterial
+    );
+    leftWall.position.set(-width / 2, height / 2, 0);
+    group.add(leftWall);
+    addCollidable(leftWall);
 
-  const rightWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height, depth),
-    wallMaterial
-  );
-  rightWall.position.set(width / 2, height / 2, 0);
-  group.add(rightWall);
-  addCollidable(rightWall);
+    const rightWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, height, depth),
+      wallMaterial
+    );
+    rightWall.position.set(width / 2, height / 2, 0);
+    group.add(rightWall);
+    addCollidable(rightWall);
+  }
 
   const roof = new THREE.Mesh(
     new THREE.BoxGeometry(width, wallThickness, depth),
@@ -156,6 +171,7 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
     wallThickness = 0.5,
     wallColor = 0x888888,
     accentColor = 0x5555ff,
+    includeInteriorWalls = true,
   } = config;
 
   const group = new THREE.Group();
@@ -173,44 +189,47 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
 
   const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor });
 
-  // Central gallery divider
-  const centralWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height - 1, depth - 4),
-    wallMaterial
-  );
-  centralWall.position.set(0, (height - 1) / 2, 0);
-  group.add(centralWall);
-  addCollidable(centralWall);
+  // Interior structure (optional)
+  if (includeInteriorWalls) {
+    // Central gallery divider
+    const centralWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, height - 1, depth - 4),
+      wallMaterial
+    );
+    centralWall.position.set(0, (height - 1) / 2, 0);
+    group.add(centralWall);
+    addCollidable(centralWall);
 
-  // Left short wall creating a side room
-  const leftShortWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height - 1, depth * 0.4),
-    wallMaterial
-  );
-  leftShortWall.position.set(-width * 0.25, (height - 1) / 2, -depth * 0.3);
-  group.add(leftShortWall);
-  addCollidable(leftShortWall);
+    // Left short wall creating a side room
+    const leftShortWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, height - 1, depth * 0.4),
+      wallMaterial
+    );
+    leftShortWall.position.set(-width * 0.25, (height - 1) / 2, -depth * 0.3);
+    group.add(leftShortWall);
+    addCollidable(leftShortWall);
 
-  // Right short wall creating another side room
-  const rightShortWall = new THREE.Mesh(
-    new THREE.BoxGeometry(wallThickness, height - 1, depth * 0.4),
-    wallMaterial
-  );
-  rightShortWall.position.set(width * 0.25, (height - 1) / 2, depth * 0.1);
-  group.add(rightShortWall);
-  addCollidable(rightShortWall);
+    // Right short wall creating another side room
+    const rightShortWall = new THREE.Mesh(
+      new THREE.BoxGeometry(wallThickness, height - 1, depth * 0.4),
+      wallMaterial
+    );
+    rightShortWall.position.set(width * 0.25, (height - 1) / 2, depth * 0.1);
+    group.add(rightShortWall);
+    addCollidable(rightShortWall);
 
-  // A couple of pillars in the main hall
-  const pillarGeometry = new THREE.BoxGeometry(0.7, height, 0.7);
-  const pillar1 = new THREE.Mesh(pillarGeometry, wallMaterial);
-  pillar1.position.set(-width * 0.15, height / 2, -depth * 0.1);
-  group.add(pillar1);
-  addCollidable(pillar1);
+    // A couple of pillars in the main hall
+    const pillarGeometry = new THREE.BoxGeometry(0.7, height, 0.7);
+    const pillar1 = new THREE.Mesh(pillarGeometry, wallMaterial);
+    pillar1.position.set(-width * 0.15, height / 2, -depth * 0.1);
+    group.add(pillar1);
+    addCollidable(pillar1);
 
-  const pillar2 = new THREE.Mesh(pillarGeometry, wallMaterial);
-  pillar2.position.set(width * 0.15, height / 2, -depth * 0.18);
-  group.add(pillar2);
-  addCollidable(pillar2);
+    const pillar2 = new THREE.Mesh(pillarGeometry, wallMaterial);
+    pillar2.position.set(width * 0.15, height / 2, -depth * 0.18);
+    group.add(pillar2);
+    addCollidable(pillar2);
+  }
 
   group.position.copy(position);
   return group;
@@ -297,6 +316,128 @@ export function createWallPainting(config: WallPaintingConfig): THREE.Mesh {
     rotationY,
   });
 }
+
+
+// -----------------------------------------------------------------------------
+// Utilities for painting placement
+// -----------------------------------------------------------------------------
+
+export type Range = { start: number; end: number };
+
+export type WallPaintingFillConfig = {
+  museumPosition: THREE.Vector3;
+  museumWidth: number;
+  museumDepth: number;
+  url: string;               // image used for every painting (can be extended later)
+  wall: WallSide;            // which wall to fill
+  paintingWidth?: number;    // defaults to 2
+  paintingHeight?: number;   // defaults to 1.5
+  centerHeight?: number;     // defaults to 2.2
+  padding?: number;          // space between paintings, default = 0.2 * width
+  /**
+   * Optional ranges along the wall to skip; units are world-space units
+   * measured from wall center (negative to positive).  Any painting whose
+   * center lies within a range will not be created.  Useful for doorways or
+   * other openings.
+   */
+  excludeAlongRanges?: Range[];
+};
+
+export type MuseumWallPaintingsConfig = Omit<WallPaintingFillConfig, "wall" | "excludeAlongRanges"> & {
+  /**
+   * If provided, only these walls are filled; otherwise all four.
+   */
+  walls?: WallSide[];
+  /**
+   * Per-wall exclusion ranges; the key is the wall name.  Each array is
+   * forwarded to the corresponding call to `fillWallWithPaintings`.
+   */
+  excludeAlongRanges?: Partial<Record<WallSide, Range[]>>;
+};
+
+/**
+ * Returns an array of paintings evenly spaced along a single wall.
+ *
+ * The `along` offset is calculated so that the series of paintings is
+ * centered on the wall and separated by the provided padding.  The helper
+ * currently uses a single URL (repeating it); the signature could easily be
+ * extended to take an array of urls for variety.
+ */
+export function fillWallWithPaintings(cfg: WallPaintingFillConfig): THREE.Mesh[] {
+  const {
+    museumPosition,
+    museumWidth,
+    museumDepth,
+    wall,
+    url,
+    paintingWidth = 2,
+    paintingHeight = 1.5,
+    centerHeight = 2.2,
+    padding,
+  } = cfg;
+
+  const span = wall === "left" || wall === "right" ? museumDepth : museumWidth;
+  const gap = padding ?? paintingWidth * 0.2;
+  const step = paintingWidth + gap;
+  if (step <= 0) return [];
+
+  const count = Math.floor(span / step);
+  if (count <= 0) return [];
+
+  const start = -span / 2 + step / 2;
+  const paintings: THREE.Mesh[] = [];
+  for (let i = 0; i < count; i++) {
+    const along = start + i * step;
+
+    // skip if this position lies within any exclusion range
+    if (cfg.excludeAlongRanges) {
+      let shouldSkip = false;
+      for (const r of cfg.excludeAlongRanges) {
+        if (along >= r.start && along <= r.end) {
+          shouldSkip = true;
+          break;
+        }
+      }
+      if (shouldSkip) continue;
+    }
+
+    paintings.push(
+      createWallPainting({
+        url,
+        museumPosition,
+        museumWidth,
+        museumDepth,
+        wall,
+        along,
+        centerHeight,
+        width: paintingWidth,
+        height: paintingHeight,
+      })
+    );
+  }
+
+  return paintings;
+}
+
+/**
+ * Convenience wrapper that populates multiple walls of a museum.  By default
+ * all four faces are filled; pass `walls` to restrict the set.
+ */
+export function fillMuseumWallsWithPaintings(cfg: MuseumWallPaintingsConfig): THREE.Mesh[] {
+  const { walls = ["left", "right", "front", "back"], excludeAlongRanges, ...rest } = cfg;
+  let result: THREE.Mesh[] = [];
+  walls.forEach((w) => {
+    result = result.concat(
+      fillWallWithPaintings({
+        ...rest,
+        wall: w,
+        excludeAlongRanges: excludeAlongRanges?.[w],
+      })
+    );
+  });
+  return result;
+}
+
 
 function createCheckerTexture(): THREE.CanvasTexture {
   const size = 128;
