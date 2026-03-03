@@ -113,10 +113,15 @@ function init(): void {
         // spawn a red block at current player position
         const spawnPos = controlsObject.position.clone();
         spawnPos.y += 1; // float slightly above feet
-        createRedBlock(spawnPos);
         if (networkClient) {
           networkClient.spawnBlock(spawnPos);
         }
+        // also show an immediate local copy just for responsiveness; it will
+        // vanish after five seconds to match the networked blocks.
+        const temp = createRedBlock(spawnPos);
+        setTimeout(() => {
+          scene.remove(temp);
+        }, 5000);
         break;
     }
   };

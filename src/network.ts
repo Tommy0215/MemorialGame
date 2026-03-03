@@ -42,6 +42,9 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
   const clientId = generateClientId();
   const remotePlayers = new Map<string, RemotePlayer>();
 
+  // keep track of blocks currently in the scene so they can be removed later
+  const blocks = new Map<string, THREE.Mesh>();
+
   let socket: WebSocket | null = null;
   try {
     socket = new WebSocket(WS_URL);
@@ -74,55 +77,82 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
         return;
       }
 
-      if (!data || data.id === clientId) {
-        return;
-      }
+      if (!data) return;
 
-      if (data.type === "state") {
-        const { id, position, rotationY, isRunning, isSneaking } = data;
-        if (!position) return;
+      switch (data.type) {
+        case "state": {
+          if (data.id === clientId) return;
+          const { id, position, rotationY, isRunning, isSneaking } = data;
+          if (!position) return;
 
-        console.log("[Network] Received remote player update:", id, position);
+          console.log("[Network] Received remote player update:", id, position);
 
-        let remote = remotePlayers.get(id);
-        if (!remote) {
-          const geometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-          const material = new THREE.MeshStandardMaterial({
-            color: isRunning ? 0x00ff88 : 0x00aaff,
-          });
-          const mesh = new THREE.Mesh(geometry, material);
-          mesh.castShadow = true;
-          scene.add(mesh);
-          remote = { object: mesh };
-          remotePlayers.set(id, remote);
+          let remote = remotePlayers.get(id);
+          if (!remote) {
+            const geometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+            const material = new THREE.MeshStandardMaterial({
+              color: isRunning ? 0x00ff88 : 0x00aaff,
+            });
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.castShadow = true;
+            scene.add(mesh);
+            remote = { object: mesh };
+            remotePlayers.set(id, remote);
+          }
+
+          const obj = remote.object;
+          obj.position.set(position.x, position.y, position.z);
+          obj.rotation.y = rotationY ?? obj.rotation.y;
+
+          const mesh = obj as THREE.Mesh;
+          const mat = mesh.material as THREE.MeshStandardMaterial;
+          if (isSneaking) {
+            mat.color.setHex(0xffaa00);
+          } else if (isRunning) {
+            mat.color.setHex(0x00ff88);
+          } else {
+            mat.color.setHex(0x00aaff);
+          }
+          break;
         }
 
-        const obj = remote.object;
-        obj.position.set(position.x, position.y, position.z);
-        obj.rotation.y = rotationY ?? obj.rotation.y;
+        case "spawnBlock": {
+          // don't process the event if it originated from this client; our
+          // local key‑press handler has already shown us a block.
+          if (data.clientId === clientId) break;
 
-        const mesh = obj as THREE.Mesh;
-        const mat = mesh.material as THREE.MeshStandardMaterial;
-        if (isSneaking) {
-          mat.color.setHex(0xffaa00);
-        } else if (isRunning) {
-          mat.color.setHex(0x00ff88);
-        } else {
-          mat.color.setHex(0x00aaff);
-        }
-        return;
-      }
+          const { position, blockId } = data;
+          if (position && blockId) {
+            const geom = new THREE.BoxGeometry(1, 1, 1);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
+            const cube = new THREE.Mesh(geom, mat);
+            cube.position.set(position.x, position.y, position.z);
+            scene.add(cube);
+            blocks.set(blockId, cube);
 
-      if (data.type === "spawnBlock") {
-        const { position } = data;
-        if (position) {
-          const geom = new THREE.BoxGeometry(1, 1, 1);
-          const mat = new THREE.MeshStandardMaterial({ color: 0xff0000 });
-          const cube = new THREE.Mesh(geom, mat);
-          cube.position.set(position.x, position.y, position.z);
-          scene.add(cube);
+            // mirror the server's timeout in case the despawn message is lost
+            setTimeout(() => {
+              const m = blocks.get(blockId);
+              if (m) {
+                scene.remove(m);
+                blocks.delete(blockId);
+              }
+            }, 5000);
+          }
+          break;
         }
-        return;
+
+        case "despawnBlock": {
+          const { blockId } = data;
+          if (blockId) {
+            const m = blocks.get(blockId);
+            if (m) {
+              scene.remove(m);
+              blocks.delete(blockId);
+            }
+          }
+          break;
+        }
       }
     });
   }
@@ -178,7 +208,7 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
       if (!socket || socket.readyState !== WebSocket.OPEN) return;
       const payload = {
         type: "spawnBlock",
-        id: clientId,
+        clientId,
         position: { x: position.x, y: position.y, z: position.z },
       };
       try {
@@ -188,6 +218,7 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
         console.error("[Network] Failed to send spawnBlock:", e);
       }
     },
+
   };
 }
 

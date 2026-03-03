@@ -45,6 +45,16 @@ const wss = new WebSocketServer({ server });
 // client connects we replay these to them so the world isn't empty. the array
 // isn’t cleared when a player disconnects – blocks are permanent for the
 // duration of the server process.
+// we attach a small expiration timer to each block so they automatically
+// disappear after a few seconds, preventing the server memory from growing
+// without bound.
+
+function generateBlockId() {
+  // simple pseudo‑unique identifier; collisions are practically impossible for
+  // our use case.
+  return Math.random().toString(16).slice(2) + "-" + Date.now().toString(16);
+}
+
 const spawnedBlocks = [];
 
 
@@ -54,40 +64,75 @@ wss.on("connection", (ws) => {
   // replay any blocks that were created before this client joined
   for (const blk of spawnedBlocks) {
     try {
-      ws.send(JSON.stringify({ type: "spawnBlock", position: blk.position }));
+      ws.send(JSON.stringify({
+        type: "spawnBlock",
+        blockId: blk.id,
+        position: blk.position,
+      }));
     } catch (e) {
       // if the socket is already closed, ignore
     }
   }
 
   ws.on("message", (data) => {
-    const text = data.toString();
-    console.log("[Server] Received message:", text.substring(0, 100));
+      const text = data.toString();
+      console.log("[Server] Received message:", text.substring(0, 100));
 
-    let msg;
-    try {
-      msg = JSON.parse(text);
-    } catch (e) {
-      // not JSON, just ignore/broadcast as before
-      msg = null;
-    }
-
-    // if this is a request to spawn a block, remember it so new players can
-    // be informed later. we don't bother deduplicating; the client that sent
-    // the message already creates the cube locally.
-    if (msg && msg.type === "spawnBlock" && msg.position) {
-      spawnedBlocks.push({ position: msg.position });
-    }
-
-    // Broadcast to all other clients
-    for (const client of wss.clients) {
-      if (client !== ws && client.readyState === 1) {
-        client.send(text);
-        console.log("[Server] Broadcasted to other client");
+      let msg;
+      try {
+        msg = JSON.parse(text);
+      } catch (e) {
+        // not JSON, just ignore/broadcast as before
+        msg = null;
       }
-    }
-  });
 
+      // handle spawnBlock specially so we can assign an ID and schedule
+      // expiration. clients will still create the cube locally right when they
+      // press the key, but the server keeps the canonical list for new
+      // connections and broadcasts removal events.
+      if (msg && msg.type === "spawnBlock" && msg.position) {
+        const bid = generateBlockId();
+        spawnedBlocks.push({ id: bid, position: msg.position });
+
+        // schedule expiration
+        setTimeout(() => {
+          const idx = spawnedBlocks.findIndex((b) => b.id === bid);
+          if (idx !== -1) spawnedBlocks.splice(idx, 1);
+          // inform everyone to drop the block
+          for (const client of wss.clients) {
+            if (client.readyState === 1) {
+              client.send(JSON.stringify({ type: "despawnBlock", blockId: bid }));
+            }
+          }
+        }, 5000);
+
+        // broadcast spawn with the block ID to clients (including sender)
+        const out = JSON.stringify({
+          type: "spawnBlock",
+          clientId: msg.clientId || null,
+          blockId: bid,
+          position: msg.position,
+        });
+
+        for (const client of wss.clients) {
+          if (client.readyState === 1) {
+            client.send(out);
+          }
+        }
+
+        // we handled the broadcast ourselves, so return early
+        return;
+      }
+
+      // other messages just get relayed as before (sender excluded since they
+      // already know about them).
+      for (const client of wss.clients) {
+        if (client !== ws && client.readyState === 1) {
+          client.send(text);
+          console.log("[Server] Broadcasted to other client");
+        }
+      }
+    });
   ws.on("close", () => {
     console.log("Player disconnected");
   });
