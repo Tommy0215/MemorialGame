@@ -11,11 +11,12 @@
       "depth": 32,
       "height": 6,
       "wallThickness": 0.5,
-      "wallColor": 8947848,
-      "accentColor": 5592575,
+      "wallColor": "#183b32",
+      "accentColor": "#0000FF",
       "includeInteriorWalls": true
     }
   ],
+
   "spawnPoint": {
     "x": 0,
     "y": 2,

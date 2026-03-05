@@ -11,7 +11,11 @@
       "depth": 12,
       "height": 6,
       "wallColor": 9803157,
-      "accentColor": 16744448
+      "accentColor": 16744448,
+      "entranceWidth": 0.4,
+      "entranceHeight": 0.7,
+      "entranceOffset": 0,
+      "entranceSide": "right"
     },
     {
       "position": { "x": 20, "y": 0, "z": 0 },
@@ -19,7 +23,11 @@
       "depth": 10,
       "height": 8,
       "wallColor": 7368816,
-      "accentColor": 65280
+      "accentColor": 65280,
+      "entranceWidth": 0.25,
+      "entranceHeight": 0.5,
+      "entranceOffset": 2,
+      "entranceSide": "left"
     },
     {
       "position": { "x": 0, "y": 0, "z": -30 },
@@ -27,7 +35,8 @@
       "depth": 14,
       "height": 5,
       "wallColor": 6710886,
-      "accentColor": 16711680
+      "accentColor": 16711680,
+      "entranceSide": "back"
     }
   ],
   "museums": [
@@ -38,12 +47,16 @@
       "height": 6,
       "wallColor": 8947848,
       "accentColor": 5592575,
-      "includeInteriorWalls": true
+      "includeInteriorWalls": true,
+      "entranceWidth": 0.35,
+      "entranceHeight": 0.65,
+      "entranceSide": "front"
     }
   ],
   "spawnPoint": {
     "x": 0,
     "y": 2,
-    "z": 60
+    "z": 2,
+    "lookAt": { "x": 0, "y": 2, "z": 30 }
   }
 }

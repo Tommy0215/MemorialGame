@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { addCollidable } from "./collision";
+import type { ColorInput } from "./mapLoader";
 
 export type FloorConfig = {
   size?: number;
@@ -12,14 +13,35 @@ export type BuildingConfig = {
   depth?: number;
   height?: number;
   wallThickness?: number;
-  wallColor?: number;
-  accentColor?: number;
+  wallColor?: ColorInput;
+  accentColor?: ColorInput;
   /**
    * Set to `false` to build a shell without any walls. Useful for
    * creating open spaces or for debugging. Defaults to `true` (walls
    * are included).
    */
   walls?: boolean;
+  /**
+   * Width of the entrance as a fraction of the building width.
+   * Defaults to 0.3 (30% of building width).
+   */
+  entranceWidth?: number;
+  /**
+   * Height of the entrance as a fraction of the building height.
+   * Defaults to 0.6 (60% of building height, with top section above).
+   */
+  entranceHeight?: number;
+  /**
+   * Horizontal offset of the entrance from center, in world units.
+   * Defaults to 0 (centered).
+   */
+  entranceOffset?: number;
+  /**
+   * Which wall should have the entrance.
+   * Options: "front" (negative Z), "back" (positive Z), "left" (negative X), "right" (positive X)
+   * Defaults to "front".
+   */
+  entranceSide?: "front" | "back" | "left" | "right";
 };
 
 export type MuseumConfig = {
@@ -28,13 +50,34 @@ export type MuseumConfig = {
   depth?: number;
   height?: number;
   wallThickness?: number;
-  wallColor?: number;
-  accentColor?: number;
+  wallColor?: ColorInput;
+  accentColor?: ColorInput;
   /**
    * If set to `false`, only the outer shell is built.  The central
    * divider, side rooms, and pillars are omitted.  Defaults to `true`.
    */
   includeInteriorWalls?: boolean;
+  /**
+   * Width of the entrance as a fraction of the building width.
+   * Defaults to 0.3 (30% of building width).
+   */
+  entranceWidth?: number;
+  /**
+   * Height of the entrance as a fraction of the building height.
+   * Defaults to 0.6 (60% of building height, with top section above).
+   */
+  entranceHeight?: number;
+  /**
+   * Horizontal offset of the entrance from center, in world units.
+   * Defaults to 0 (centered).
+   */
+  entranceOffset?: number;
+  /**
+   * Which wall should have the entrance.
+   * Options: "front" (negative Z), "back" (positive Z), "left" (negative X), "right" (positive X)
+   * Defaults to "front".
+   */
+  entranceSide?: "front" | "back" | "left" | "right";
 };
 
 export type PaintingConfig = {
@@ -76,6 +119,22 @@ export function createFloor(config: FloorConfig = {}): THREE.Mesh {
   return floor;
 }
 
+/**
+ * Convert ColorInput to decimal number
+ * Accepts hex string ("#FF0000"), RGB object { r, g, b }, or decimal number
+ */
+function resolveColor(color: ColorInput): number {
+  if (typeof color === "number") {
+    return color;
+  }
+  if (typeof color === "string") {
+    // Parse hex string like "#FF0000"
+    const hex = color.replace("#", "");
+    return parseInt(hex, 16);
+  }
+  return (color.r << 16) | (color.g << 8) | color.b;
+}
+
 export function createBuilding(config: BuildingConfig = {}): THREE.Group {
   const {
     position = new THREE.Vector3(0, 0, 0),
@@ -86,62 +145,136 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
     wallColor = 0x888888,
     accentColor = 0x5555ff,
     walls = true,
+    entranceWidth = 0.3,
+    entranceHeight = 0.6,
+    entranceOffset = 0,
+    entranceSide = "front",
   } = config;
 
   const group = new THREE.Group();
 
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor });
-  const accentMaterial = new THREE.MeshStandardMaterial({ color: accentColor });
+  const wallMaterial = new THREE.MeshStandardMaterial({
+    color: resolveColor(wallColor),
+  });
+  const accentMaterial = new THREE.MeshStandardMaterial({
+    color: resolveColor(accentColor),
+  });
+
+  // Helper function to create a wall with an entrance
+  const createWallWithEntrance = (
+    wallWidth: number,
+    wallDepth: number,
+    zPos: number,
+    xPos: number,
+    isHorizontalWall: boolean
+  ) => {
+    // For horizontal walls (front/back), entrance runs along X axis
+    // For vertical walls (left/right), entrance runs along Z axis
+    const effectiveWidth = isHorizontalWall ? wallWidth : wallDepth;
+    const entranceWidthActual = effectiveWidth * entranceWidth;
+    const entranceHalfWidth = entranceWidthActual / 2;
+    const entranceCenter = entranceOffset;
+    
+    const entranceLeft = entranceCenter - entranceHalfWidth;
+    const entranceRight = entranceCenter + entranceHalfWidth;
+    
+    // Left segment: from left edge to left entrance edge
+    const leftSegmentSize = effectiveWidth / 2 + entranceLeft;
+    if (leftSegmentSize > 0) {
+      const geom = isHorizontalWall
+        ? new THREE.BoxGeometry(leftSegmentSize, height, wallThickness)
+        : new THREE.BoxGeometry(wallThickness, height, leftSegmentSize);
+      const mesh = new THREE.Mesh(geom, wallMaterial);
+      
+      if (isHorizontalWall) {
+        mesh.position.set(-effectiveWidth / 2 + leftSegmentSize / 2 + xPos, height / 2, zPos);
+      } else {
+        mesh.position.set(xPos, height / 2, -effectiveWidth / 2 + leftSegmentSize / 2 + zPos);
+      }
+      group.add(mesh);
+      addCollidable(mesh);
+    }
+    
+    // Right segment: from right entrance edge to right edge
+    const rightSegmentSize = effectiveWidth / 2 - entranceRight;
+    if (rightSegmentSize > 0) {
+      const geom = isHorizontalWall
+        ? new THREE.BoxGeometry(rightSegmentSize, height, wallThickness)
+        : new THREE.BoxGeometry(wallThickness, height, rightSegmentSize);
+      const mesh = new THREE.Mesh(geom, wallMaterial);
+      
+      if (isHorizontalWall) {
+        mesh.position.set(effectiveWidth / 2 - rightSegmentSize / 2 + xPos, height / 2, zPos);
+      } else {
+        mesh.position.set(xPos, height / 2, effectiveWidth / 2 - rightSegmentSize / 2 + zPos);
+      }
+      group.add(mesh);
+      addCollidable(mesh);
+    }
+
+    // Top section above entrance
+    const topSectionHeight = height * (1 - entranceHeight);
+    if (topSectionHeight > 0) {
+      const geom = isHorizontalWall
+        ? new THREE.BoxGeometry(entranceWidthActual, topSectionHeight, wallThickness)
+        : new THREE.BoxGeometry(wallThickness, topSectionHeight, entranceWidthActual);
+      const mesh = new THREE.Mesh(geom, wallMaterial);
+      
+      if (isHorizontalWall) {
+        mesh.position.set(entranceCenter + xPos, height - topSectionHeight / 2, zPos);
+      } else {
+        mesh.position.set(xPos, height - topSectionHeight / 2, entranceCenter + zPos);
+      }
+      group.add(mesh);
+      addCollidable(mesh);
+    }
+  };
+
+  // Helper function to create a solid wall
+  const createSolidWall = (
+    wallWidth: number,
+    wallDepth: number,
+    zPos: number,
+    xPos: number
+  ) => {
+    const mesh = new THREE.Mesh(
+      new THREE.BoxGeometry(wallWidth, height, wallDepth),
+      wallMaterial
+    );
+    mesh.position.set(xPos, height / 2, zPos);
+    group.add(mesh);
+    addCollidable(mesh);
+  };
 
   // outer shell walls (conditional)
   if (walls) {
-    const frontLeftWall = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.35, height, wallThickness),
-      wallMaterial
-    );
-    frontLeftWall.position.set(-width * 0.325, height / 2, -depth / 2);
-    group.add(frontLeftWall);
-    addCollidable(frontLeftWall);
+    // Front wall (negative Z)
+    if (entranceSide === "front") {
+      createWallWithEntrance(width, wallThickness, -depth / 2, 0, true);
+    } else {
+      createSolidWall(width, wallThickness, -depth / 2, 0);
+    }
 
-    const frontRightWall = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.35, height, wallThickness),
-      wallMaterial
-    );
-    frontRightWall.position.set(width * 0.325, height / 2, -depth / 2);
-    group.add(frontRightWall);
-    addCollidable(frontRightWall);
+    // Back wall (positive Z)
+    if (entranceSide === "back") {
+      createWallWithEntrance(width, wallThickness, depth / 2, 0, true);
+    } else {
+      createSolidWall(width, wallThickness, depth / 2, 0);
+    }
 
-    const frontTop = new THREE.Mesh(
-      new THREE.BoxGeometry(width * 0.3, height * 0.4, wallThickness),
-      wallMaterial
-    );
-    frontTop.position.set(0, height * 0.8, -depth / 2);
-    group.add(frontTop);
-    addCollidable(frontTop);
+    // Left wall (negative X)
+    if (entranceSide === "left") {
+      createWallWithEntrance(wallThickness, depth, 0, -width / 2, false);
+    } else {
+      createSolidWall(wallThickness, depth, 0, -width / 2);
+    }
 
-    const backWall = new THREE.Mesh(
-      new THREE.BoxGeometry(width, height, wallThickness),
-      wallMaterial
-    );
-    backWall.position.set(0, height / 2, depth / 2);
-    group.add(backWall);
-    addCollidable(backWall);
-
-    const leftWall = new THREE.Mesh(
-      new THREE.BoxGeometry(wallThickness, height, depth),
-      wallMaterial
-    );
-    leftWall.position.set(-width / 2, height / 2, 0);
-    group.add(leftWall);
-    addCollidable(leftWall);
-
-    const rightWall = new THREE.Mesh(
-      new THREE.BoxGeometry(wallThickness, height, depth),
-      wallMaterial
-    );
-    rightWall.position.set(width / 2, height / 2, 0);
-    group.add(rightWall);
-    addCollidable(rightWall);
+    // Right wall (positive X)
+    if (entranceSide === "right") {
+      createWallWithEntrance(wallThickness, depth, 0, width / 2, false);
+    } else {
+      createSolidWall(wallThickness, depth, 0, width / 2);
+    }
   }
 
   const roof = new THREE.Mesh(
@@ -151,11 +284,31 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
   roof.position.set(0, height + wallThickness / 2, 0);
   group.add(roof);
 
-  const stripe = new THREE.Mesh(
-    new THREE.BoxGeometry(width, height * 0.15, wallThickness * 1.2),
-    accentMaterial
-  );
-  stripe.position.set(0, height * 0.55, -depth / 2 - 0.01);
+  // Decorative accent stripe on the entrance wall
+  let stripeGeometry: THREE.BoxGeometry;
+  let stripePosition: THREE.Vector3;
+  
+  switch (entranceSide) {
+    case "front":
+      stripeGeometry = new THREE.BoxGeometry(width, height * 0.15, wallThickness * 1.2);
+      stripePosition = new THREE.Vector3(0, height * 0.55, -depth / 2 - 0.01);
+      break;
+    case "back":
+      stripeGeometry = new THREE.BoxGeometry(width, height * 0.15, wallThickness * 1.2);
+      stripePosition = new THREE.Vector3(0, height * 0.55, depth / 2 + 0.01);
+      break;
+    case "left":
+      stripeGeometry = new THREE.BoxGeometry(wallThickness * 1.2, height * 0.15, depth);
+      stripePosition = new THREE.Vector3(-width / 2 - 0.01, height * 0.55, 0);
+      break;
+    case "right":
+      stripeGeometry = new THREE.BoxGeometry(wallThickness * 1.2, height * 0.15, depth);
+      stripePosition = new THREE.Vector3(width / 2 + 0.01, height * 0.55, 0);
+      break;
+  }
+  
+  const stripe = new THREE.Mesh(stripeGeometry, accentMaterial);
+  stripe.position.copy(stripePosition);
   group.add(stripe);
 
   group.position.copy(position);
@@ -172,6 +325,10 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
     wallColor = 0x888888,
     accentColor = 0x5555ff,
     includeInteriorWalls = true,
+    entranceWidth = 0.3,
+    entranceHeight = 0.6,
+    entranceOffset = 0,
+    entranceSide = "front",
   } = config;
 
   const group = new THREE.Group();
@@ -184,10 +341,16 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
     wallThickness,
     wallColor,
     accentColor,
+    entranceWidth,
+    entranceHeight,
+    entranceOffset,
+    entranceSide,
   });
   group.add(shell);
 
-  const wallMaterial = new THREE.MeshStandardMaterial({ color: wallColor });
+  const wallMaterial = new THREE.MeshStandardMaterial({
+    color: resolveColor(wallColor),
+  });
 
   // Interior structure (optional)
   if (includeInteriorWalls) {

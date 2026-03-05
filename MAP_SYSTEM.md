@@ -68,6 +68,10 @@ Array of building objects with:
 - `wallColor`: Hex color as decimal (e.g., 0x888888 = 8947848)
 - `accentColor`: Accent stripe color
 - `walls`: Boolean, whether to include walls (default true)
+- `entranceWidth`: Width of entrance as fraction of building width (default 0.3)
+- `entranceHeight`: Height of entrance as fraction of building height (default 0.6)
+- `entranceOffset`: Horizontal offset from center in world units (default 0)
+- `entranceSide`: Which wall has the entrance - "front" (negative Z), "back" (positive Z), "left" (negative X), or "right" (positive X). Default is "front"
 
 ### Museums
 Same as buildings, plus:

@@ -6,6 +6,10 @@ export function addCollidable(object: THREE.Object3D): void {
   collidableMeshes.push(object);
 }
 
+export function clearCollidables(): void {
+  collidableMeshes.length = 0;
+}
+
 export function resolveCollisions(playerPosition: THREE.Vector3): void {
   const playerRadius = 0.5;
   const playerHeight = 1.7;

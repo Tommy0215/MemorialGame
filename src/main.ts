@@ -10,8 +10,8 @@ let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 let controls: PointerLockControls;
 
-// Current map file path for hot-reloading
-const CURRENT_MAP = "/maps/default.json";
+// Current map file path for loading/reloading
+let currentMapPath = "/maps/campus.json";
 
 let moveForward = false;
 let moveBackward = false;
@@ -55,10 +55,22 @@ const SNEAK_MULTIPLIER = 0.4;
 const STAND_HEIGHT = 1.6;
 const SNEAK_HEIGHT = 1.2;
 
+// Start initialization (async)
 init();
 animate();
 
-function init(): void {
+async function loadSelectedMap(mapPath: string): Promise<void> {
+  currentMapPath = mapPath;
+  const spawn = await loadMapFromFile(scene, currentMapPath);
+  const controlsObject = getControlsObject();
+  controlsObject.position.copy(spawn.position);
+  controlsObject.lookAt(spawn.lookAt);
+  velocity.set(0, 0, 0);
+  verticalVelocity = 0;
+  canJump = true;
+}
+
+async function init(): Promise<void> {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x87ceeb);
 
@@ -71,16 +83,26 @@ function init(): void {
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.domElement.tabIndex = 0;
   document.body.appendChild(renderer.domElement);
 
   setupLights();
-  setupWorld();
 
   controls = new PointerLockControls(camera, document.body);
   const controlsObject = getControlsObject();
   scene.add(controlsObject);
-  controlsObject.position.set(0, 1.6, -30);
-  controlsObject.lookAt(new THREE.Vector3(0, 1.6, -41));
+
+  // Load map from JSON file
+  try {
+    await loadSelectedMap(currentMapPath);
+    console.log("[Main] Map loaded successfully");
+  } catch (err) {
+    console.error("[Main] Failed to load map:", err);
+    // Fallback to old setup if map fails
+    setupWorld();
+    controlsObject.position.set(0, 1.6, -30);
+    controlsObject.lookAt(new THREE.Vector3(0, 1.6, -41));
+  }
 
   networkClient = createNetworkClient(scene);
 
@@ -123,7 +145,7 @@ function init(): void {
       case "KeyM":
         // Hot-reload map for development
         console.log("[Dev] Reloading map...");
-        loadMapFromFile(scene, CURRENT_MAP)
+        loadSelectedMap(currentMapPath)
           .then(() => {
             console.log("[Dev] Map reloaded successfully");
           })

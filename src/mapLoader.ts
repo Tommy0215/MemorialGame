@@ -8,9 +8,50 @@ import {
   type FloorConfig,
   type BuildingConfig,
   type MuseumConfig,
-  type PaintingConfig,
   type WallPaintingConfig,
 } from "./environment";
+import { clearCollidables } from "./collision";
+
+// Helper type for flexible color input (hex string, RGB object, or decimal number)
+export type ColorInput = string | { r: number; g: number; b: number } | number;
+
+/**
+ * Convert color to decimal number
+ * Accepts hex string ("#FF0000"), RGB object { r, g, b }, or decimal number
+ */
+function toDecimalColor(color: ColorInput): number {
+  if (typeof color === "number") {
+    return color;
+  }
+  if (typeof color === "string") {
+    // Parse hex string like "#7f4747"
+    const hex = color.replace("#", "");
+    return parseInt(hex, 16);
+  }
+  // RGB object: convert to 0xRRGGBB
+  return (color.r << 16) | (color.g << 8) | color.b;
+}
+
+export interface PaintingConfig {
+  url: string;
+  position: THREE.Vector3;
+  width?: number;
+  height?: number;
+  rotationY?: number;
+}
+
+export interface SimpleObjectConfig {
+  type: "box" | "sphere" | "cylinder";
+  position: { x: number; y: number; z: number };
+  color: ColorInput;
+  width?: number;
+  height?: number;
+  depth?: number;
+  radius?: number;
+  rotationX?: number;
+  rotationY?: number;
+  rotationZ?: number;
+}
 
 // Map structure definition
 export interface MapConfig {
@@ -20,7 +61,8 @@ export interface MapConfig {
   museums?: MuseumConfig[];
   paintings?: PaintingConfig[];
   wallPaintings?: WallPaintingConfig[];
-  spawnPoint?: { x: number; y: number; z: number };
+  objects?: SimpleObjectConfig[];
+  spawnPoint?: { x: number; y: number; z: number; lookAt?: { x: number; y: number; z: number } };
 }
 
 // Building type registry for extensibility
@@ -47,7 +89,9 @@ export function registerBuildingType(
 /**
  * Load a map configuration and add all elements to the scene
  */
-export function loadMap(scene: THREE.Scene, mapConfig: MapConfig): THREE.Vector3 {
+export function loadMap(scene: THREE.Scene, mapConfig: MapConfig): { position: THREE.Vector3; lookAt: THREE.Vector3 } {
+  clearCollidables();
+
   // Clear existing environment objects (optional - keeps lights and player)
   const objectsToRemove: THREE.Object3D[] = [];
   scene.traverse((obj) => {
@@ -92,9 +136,62 @@ export function loadMap(scene: THREE.Scene, mapConfig: MapConfig): THREE.Vector3
     scene.add(painting);
   });
 
-  // Return spawn point
+  // Create simple objects
+  mapConfig.objects?.forEach((objConfig) => {
+    const obj = createSimpleObject(objConfig);
+    obj.userData.isEnvironment = true;
+    scene.add(obj);
+  });
+
+  // Return spawn point and look direction
   const spawn = mapConfig.spawnPoint || { x: 0, y: 2, z: 15 };
-  return new THREE.Vector3(spawn.x, spawn.y, spawn.z);
+  const position = new THREE.Vector3(spawn.x, spawn.y, spawn.z);
+  const lookAt = spawn.lookAt 
+    ? new THREE.Vector3(spawn.lookAt.x, spawn.lookAt.y, spawn.lookAt.z)
+    : position.clone().add(new THREE.Vector3(0, 0, -5));
+  return { position, lookAt };
+}
+
+/**
+ * Create a simple geometric object (box, sphere, cylinder)
+ */
+function createSimpleObject(config: SimpleObjectConfig): THREE.Mesh {
+  let geometry: THREE.BufferGeometry;
+
+  switch (config.type) {
+    case "box":
+      geometry = new THREE.BoxGeometry(
+        config.width ?? 1,
+        config.height ?? 1,
+        config.depth ?? 1
+      );
+      break;
+    case "sphere":
+      geometry = new THREE.SphereGeometry(config.radius ?? 1);
+      break;
+    case "cylinder":
+      geometry = new THREE.CylinderGeometry(
+        config.radius ?? 1,
+        config.radius ?? 1,
+        config.height ?? 1
+      );
+      break;
+  }
+
+  const material = new THREE.MeshStandardMaterial({
+    color: toDecimalColor(config.color),
+  });
+  const mesh = new THREE.Mesh(geometry, material);
+
+  mesh.position.set(config.position.x, config.position.y, config.position.z);
+  if (config.rotationX) mesh.rotation.x = config.rotationX;
+  if (config.rotationY) mesh.rotation.y = config.rotationY;
+  if (config.rotationZ) mesh.rotation.z = config.rotationZ;
+
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  return mesh;
 }
 
 /**
@@ -103,7 +200,7 @@ export function loadMap(scene: THREE.Scene, mapConfig: MapConfig): THREE.Vector3
 export async function loadMapFromFile(
   scene: THREE.Scene,
   mapPath: string
-): Promise<THREE.Vector3> {
+): Promise<{ position: THREE.Vector3; lookAt: THREE.Vector3 }> {
   console.log(`[MapLoader] Fetching map from: ${mapPath}`);
   const response = await fetch(mapPath + '?t=' + Date.now()); // Cache bust for dev
   const mapConfig: MapConfig = await response.json();
