@@ -45,6 +45,53 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
   // keep track of blocks currently in the scene so they can be removed later
   const blocks = new Map<string, THREE.Mesh>();
 
+  // texture loader for skins
+  const textureLoader = new THREE.TextureLoader();
+  const skinTextureCache = new Map<string, THREE.Texture>();
+  const pendingTextureLoads = new Map<string, Promise<THREE.Texture>>();
+
+  // Load or return cached skin texture
+  function loadSkinTexture(skinName: string): Promise<THREE.Texture> {
+    console.log(`[Network] Loading skin texture: ${skinName}`);
+    
+    if (skinTextureCache.has(skinName)) {
+      console.log(`[Network] Using cached skin texture: ${skinName}`);
+      return Promise.resolve(skinTextureCache.get(skinName)!);
+    }
+    if (pendingTextureLoads.has(skinName)) {
+      console.log(`[Network] Waiting for pending skin texture: ${skinName}`);
+      return pendingTextureLoads.get(skinName)!;
+    }
+
+    const promise = new Promise<THREE.Texture>((resolve, reject) => {
+      const path = `/images/skins/${skinName}.png`;
+      console.log(`[Network] Fetching skin from: ${path}`);
+      
+      textureLoader.load(
+        path,
+        (tex) => {
+          console.log(`[Network] Successfully loaded skin texture: ${skinName}`);
+          tex.magFilter = THREE.NearestFilter;
+          tex.minFilter = THREE.NearestFilter;
+          skinTextureCache.set(skinName, tex);
+          resolve(tex);
+        },
+        undefined,
+        (error) => {
+          console.error(`[Network] Failed to load skin texture: ${skinName}`, error);
+          reject(error);
+        }
+      );
+    });
+
+    pendingTextureLoads.set(skinName, promise);
+    promise.finally(() => {
+      pendingTextureLoads.delete(skinName);
+    });
+
+    return promise;
+  }
+
   let socket: WebSocket | null = null;
   try {
     socket = new WebSocket(WS_URL);
@@ -82,18 +129,45 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
       switch (data.type) {
         case "state": {
           if (data.id === clientId) return;
-          const { id, position, rotationY, isRunning, isSneaking } = data;
+          const { id, position, rotationY, isRunning, isSneaking, skin } = data;
           if (!position) return;
 
-          console.log("[Network] Received remote player update:", id, position);
+          console.log("[Network] Received remote player update:", id, position, "skin:", skin);
 
           let remote = remotePlayers.get(id);
           if (!remote) {
+            console.log("[Network] Creating new remote player with skin:", skin);
             const geometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
-            const material = new THREE.MeshStandardMaterial({
-              color: isRunning ? 0x00ff88 : 0x00aaff,
-            });
-            const mesh = new THREE.Mesh(geometry, material);
+
+            // Create material for front face (skin)
+            let frontMaterial = new THREE.MeshStandardMaterial({ color: 0x00aaff });
+
+            // Load skin texture asynchronously and update material when ready
+            if (skin) {
+              console.log("[Network] Attempting to load skin:", skin);
+              loadSkinTexture(skin).then(() => {
+                // After loading, update the material
+                const cached = skinTextureCache.get(skin);
+                if (cached) {
+                  frontMaterial.map = cached;
+                  frontMaterial.needsUpdate = true;
+                }
+              }).catch(err => {
+                console.error(`[Network] Failed to apply skin texture: ${skin}`, err);
+              });
+            }
+
+            // create materials: textured for front, solid colors for other sides
+            const materials = [
+              new THREE.MeshStandardMaterial({ color: 0x00aaff }), // right
+              new THREE.MeshStandardMaterial({ color: 0x00aaff }), // left
+              new THREE.MeshStandardMaterial({ color: 0x0088dd }), // top
+              new THREE.MeshStandardMaterial({ color: 0x006699 }), // bottom
+              frontMaterial, // front
+              new THREE.MeshStandardMaterial({ color: 0x00aaff }), // back
+            ];
+
+            const mesh = new THREE.Mesh(geometry, materials);
             mesh.castShadow = true;
             scene.add(mesh);
             remote = { object: mesh };
@@ -104,14 +178,16 @@ export function createNetworkClient(scene: THREE.Scene): NetworkClient {
           obj.position.set(position.x, position.y, position.z);
           obj.rotation.y = rotationY ?? obj.rotation.y;
 
+          // update color on non-textured faces based on state
           const mesh = obj as THREE.Mesh;
-          const mat = mesh.material as THREE.MeshStandardMaterial;
-          if (isSneaking) {
-            mat.color.setHex(0xffaa00);
-          } else if (isRunning) {
-            mat.color.setHex(0x00ff88);
-          } else {
-            mat.color.setHex(0x00aaff);
+          const mats = mesh.material as THREE.Material[];
+          if (Array.isArray(mats)) {
+            const color = isSneaking ? 0xffaa00 : isRunning ? 0x00ff88 : 0x00aaff;
+            for (let i = 0; i < mats.length; i++) {
+              if (i !== 4 && mats[i] instanceof THREE.MeshStandardMaterial) {
+                (mats[i] as THREE.MeshStandardMaterial).color.setHex(color);
+              }
+            }
           }
           break;
         }

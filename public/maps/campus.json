@@ -1,0 +1,49 @@
+{
+  "name": "Multi-Building Campus",
+  "floor": {
+    "size": 150,
+    "textureRepeat": 30
+  },
+  "buildings": [
+    {
+      "position": { "x": -20, "y": 0, "z": 0 },
+      "width": 12,
+      "depth": 12,
+      "height": 6,
+      "wallColor": 9803157,
+      "accentColor": 16744448
+    },
+    {
+      "position": { "x": 20, "y": 0, "z": 0 },
+      "width": 15,
+      "depth": 10,
+      "height": 8,
+      "wallColor": 7368816,
+      "accentColor": 65280
+    },
+    {
+      "position": { "x": 0, "y": 0, "z": -30 },
+      "width": 18,
+      "depth": 14,
+      "height": 5,
+      "wallColor": 6710886,
+      "accentColor": 16711680
+    }
+  ],
+  "museums": [
+    {
+      "position": { "x": 0, "y": 0, "z": 30 },
+      "width": 24,
+      "depth": 32,
+      "height": 6,
+      "wallColor": 8947848,
+      "accentColor": 5592575,
+      "includeInteriorWalls": true
+    }
+  ],
+  "spawnPoint": {
+    "x": 0,
+    "y": 2,
+    "z": 60
+  }
+}

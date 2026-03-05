@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Login</title>
+  <style>
+    body { font-family: sans-serif; display: flex; height: 100vh; justify-content: center; align-items: center; background:#eee; }
+    form { background:#fff; padding:2rem; border-radius:4px; box-shadow:0 0 10px rgba(0,0,0,.1); }
+    label { display:block; margin-bottom:0.5rem; }
+    input { width:100%; padding:.5rem; margin-bottom:1rem; }
+    button { padding:.5rem 1rem; margin-right: 0.5rem; }
+    .button-group { display: flex; gap: 0.5rem; }
+  </style>
+</head>
+<body>
+  <form method="POST" action="/login">
+    <h2>Please log in</h2>
+    <label>
+      Username
+      <input type="text" name="username" required autofocus />
+    </label>
+    <label>
+      Password
+      <input type="password" name="password" required />
+    </label>
+    <div class="button-group">
+      <button type="submit">Log in</button>
+      <button type="button" onclick="quickLogin()">Quick Login (Dev)</button>
+    </div>
+  </form>
+
+  <script>
+    function quickLogin() {
+      fetch('/quick-login', { method: 'POST' })
+        .then(res => {
+          if (res.ok) window.location.href = '/';
+          else alert('Quick login failed');
+        })
+        .catch(err => alert('Error: ' + err));
+    }
+  </script>
+</body>
+</html>

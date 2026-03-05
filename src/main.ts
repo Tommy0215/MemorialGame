@@ -3,11 +3,15 @@ import { PointerLockControls } from "three/examples/jsm/controls/PointerLockCont
 import { createFloor, createMuseum, fillMuseumWallsWithPaintings } from "./environment";
 import { resolveCollisions } from "./collision";
 import { createNetworkClient, type NetworkClient } from "./network";
+import { loadMapFromFile } from "./mapLoader";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
 let renderer: THREE.WebGLRenderer;
 let controls: PointerLockControls;
+
+// Current map file path for hot-reloading
+const CURRENT_MAP = "/maps/default.json";
 
 let moveForward = false;
 let moveBackward = false;
@@ -18,6 +22,12 @@ let isRunning = false;
 let isSneaking = false;
 
 let networkClient: NetworkClient | null = null;
+
+// Coordinate display element
+const coordsElement = document.getElementById("coordinates") as HTMLDivElement;
+
+// Dev mode: toggle coordinates display with 'C' key
+let showCoordinates = false;
 
 const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
@@ -102,6 +112,24 @@ function init(): void {
         break;
       case "ShiftLeft":
         isSneaking = true;
+        break;
+      case "KeyC":
+        // Toggle coordinate display
+        showCoordinates = !showCoordinates;
+        if (coordsElement) {
+          coordsElement.style.display = showCoordinates ? "block" : "none";
+        }
+        break;
+      case "KeyM":
+        // Hot-reload map for development
+        console.log("[Dev] Reloading map...");
+        loadMapFromFile(scene, CURRENT_MAP)
+          .then(() => {
+            console.log("[Dev] Map reloaded successfully");
+          })
+          .catch((err) => {
+            console.error("[Dev] Failed to reload map:", err);
+          });
         break;
       case "Space":
         if (canJump) {
@@ -288,6 +316,16 @@ function animate(): void {
 
     if (networkClient) {
       networkClient.update(controlsObject, { isRunning, isSneaking });
+    }
+
+    // Update coordinate display
+    if (coordsElement && showCoordinates) {
+      const pos = controlsObject.position;
+      coordsElement.innerHTML = `
+        X: ${pos.x.toFixed(2)}<br>
+        Y: ${pos.y.toFixed(2)}<br>
+        Z: ${pos.z.toFixed(2)}
+      `;
     }
   }
 

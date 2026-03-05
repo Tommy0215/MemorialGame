@@ -1,0 +1,24 @@
+{
+  "name": "Default Museum Map",
+  "floor": {
+    "size": 100,
+    "textureRepeat": 20
+  },
+  "museums": [
+    {
+      "position": { "x": 0, "y": 0, "z": 0 },
+      "width": 24,
+      "depth": 32,
+      "height": 6,
+      "wallThickness": 0.5,
+      "wallColor": 8947848,
+      "accentColor": 5592575,
+      "includeInteriorWalls": true
+    }
+  ],
+  "spawnPoint": {
+    "x": 0,
+    "y": 2,
+    "z": 15
+  }
+}

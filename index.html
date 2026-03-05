@@ -6,10 +6,24 @@
     <style>
       body { margin: 0; overflow: hidden; }
       canvas { display: block; }
+      #coordinates {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        color: white;
+        font-family: monospace;
+        font-size: 14px;
+        background: rgba(0, 0, 0, 0.5);
+        padding: 10px;
+        border-radius: 4px;
+        pointer-events: none;
+        display: none;
+      }
     </style>
   </head>
   <body>
     <!-- Your game will append the canvas here -->
+    <div id="coordinates"></div>
     
     <!-- Main game script -->
     <script type="module" src="/src/main.js"></script>
