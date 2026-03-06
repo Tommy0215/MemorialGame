@@ -6,6 +6,7 @@
   },
   "buildings": [
     {
+      "name": "West Building",
       "position": { "x": -20, "y": 0, "z": 0 },
       "width": 12,
       "depth": 12,
@@ -15,9 +16,10 @@
       "entranceWidth": 0.4,
       "entranceHeight": 0.7,
       "entranceOffset": 0,
-      "entranceSide": "right"
+      "entranceSide": "east"
     },
     {
+      "name": "East Building",
       "position": { "x": 20, "y": 0, "z": 0 },
       "width": 15,
       "depth": 10,
@@ -27,30 +29,61 @@
       "entranceWidth": 0.25,
       "entranceHeight": 0.5,
       "entranceOffset": 2,
-      "entranceSide": "left"
+      "entranceSide": "west"
     },
     {
+      "name": "North Building",
       "position": { "x": 0, "y": 0, "z": -30 },
       "width": 18,
       "depth": 14,
       "height": 5,
       "wallColor": 6710886,
       "accentColor": 16711680,
-      "entranceSide": "back"
+      "entranceSide": "south"
     }
   ],
   "museums": [
     {
+      "name": "Main Gallery",
       "position": { "x": 0, "y": 0, "z": 30 },
       "width": 24,
       "depth": 32,
       "height": 6,
       "wallColor": 8947848,
       "accentColor": 5592575,
-      "includeInteriorWalls": true,
       "entranceWidth": 0.35,
       "entranceHeight": 0.65,
-      "entranceSide": "front"
+      "entranceSide": "north",
+      "interiorWalls": [
+        {
+          "name": "Center divider",
+          "position": { "x": 0, "y": 2.5, "z": 5 },
+          "width": 0.5,
+          "height": 5,
+          "depth": 24
+        },
+        {
+          "name": "Center Horizontal wall",
+          "position": { "x": 0, "y": 2.5, "z": -12 },
+          "width": 12.5,
+          "height": 5,
+          "depth": 0.5
+        },
+        {
+          "name": "Right wing wall",
+          "position": { "x": -6, "y": 2.5, "z": 0 },
+          "width": 0.5,
+          "height": 5,
+          "depth": 24
+        },
+        {
+          "name": "Left wing wall",
+          "position": { "x": 6, "y": 2.5, "z": 0 },
+          "width": 0.5,
+          "height": 5,
+          "depth": 24
+        }
+      ]
     }
   ],
   "spawnPoint": {

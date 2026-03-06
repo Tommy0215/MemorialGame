@@ -7,7 +7,47 @@ export type FloorConfig = {
   textureRepeat?: number;
 };
 
+const CHECKER_CELLS_PER_TILE = 8;
+const CHECKER_WORLD_CELL_SIZE = 1;
+
+type EntranceSide =
+  | "north"
+  | "south"
+  | "east"
+  | "west"
+  | "front"
+  | "back"
+  | "left"
+  | "right";
+
+export type InteriorWall = {
+  /**
+   * Optional name/label for identification and documentation
+   */
+  name?: string;
+  /**
+   * Position relative to the building center
+   */
+  position: { x: number; y: number; z: number };
+  /**
+   * Width (X dimension) of the wall or pillar
+   */
+  width: number;
+  /**
+   * Height (Y dimension) of the wall or pillar
+   */
+  height: number;
+  /**
+   * Depth (Z dimension) of the wall or pillar
+   */
+  depth: number;
+};
+
 export type BuildingConfig = {
+  /**
+   * Optional name/label for identification and documentation
+   */
+  name?: string;
   position?: THREE.Vector3;
   width?: number;
   depth?: number;
@@ -38,13 +78,22 @@ export type BuildingConfig = {
   entranceOffset?: number;
   /**
    * Which wall should have the entrance.
-   * Options: "front" (negative Z), "back" (positive Z), "left" (negative X), "right" (positive X)
-   * Defaults to "front".
+   * Preferred options: "north" (negative Z), "south" (positive Z), "west" (negative X), "east" (positive X).
+   * Legacy aliases also supported: "front"="north", "back"="south", "left"="west", "right"="east".
+   * Defaults to "north".
    */
-  entranceSide?: "front" | "back" | "left" | "right";
+  entranceSide?: EntranceSide;
+  /**
+   * Custom interior walls and pillars. Each wall is positioned relative to the building center.
+   */
+  interiorWalls?: InteriorWall[];
 };
 
 export type MuseumConfig = {
+  /**
+   * Optional name/label for identification and documentation
+   */
+  name?: string;
   position?: THREE.Vector3;
   width?: number;
   depth?: number;
@@ -55,8 +104,14 @@ export type MuseumConfig = {
   /**
    * If set to `false`, only the outer shell is built.  The central
    * divider, side rooms, and pillars are omitted.  Defaults to `true`.
+   * Note: This is ignored if `interiorWalls` is provided.
    */
   includeInteriorWalls?: boolean;
+  /**
+   * Custom interior walls and pillars. Each wall is positioned relative to the building center.
+   * If provided, this overrides `includeInteriorWalls`.
+   */
+  interiorWalls?: InteriorWall[];
   /**
    * Width of the entrance as a fraction of the building width.
    * Defaults to 0.3 (30% of building width).
@@ -74,10 +129,11 @@ export type MuseumConfig = {
   entranceOffset?: number;
   /**
    * Which wall should have the entrance.
-   * Options: "front" (negative Z), "back" (positive Z), "left" (negative X), "right" (positive X)
-   * Defaults to "front".
+   * Preferred options: "north" (negative Z), "south" (positive Z), "west" (negative X), "east" (positive X).
+   * Legacy aliases also supported: "front"="north", "back"="south", "left"="west", "right"="east".
+   * Defaults to "north".
    */
-  entranceSide?: "front" | "back" | "left" | "right";
+  entranceSide?: EntranceSide;
 };
 
 export type PaintingConfig = {
@@ -104,13 +160,15 @@ export type WallPaintingConfig = {
 
 export function createFloor(config: FloorConfig = {}): THREE.Mesh {
   const size = config.size ?? 100;
-  const textureRepeat = config.textureRepeat ?? 20;
 
   const geometry = new THREE.PlaneGeometry(size, size);
   const texture = createCheckerTexture();
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(textureRepeat, textureRepeat);
+
+  // Keep each checker square exactly 1x1 world units, aligned to floor coordinates.
+  const repeatPerAxis = size / (CHECKER_CELLS_PER_TILE * CHECKER_WORLD_CELL_SIZE);
+  texture.repeat.set(repeatPerAxis, repeatPerAxis);
 
   const material = new THREE.MeshStandardMaterial({ map: texture });
   const floor = new THREE.Mesh(geometry, material);
@@ -148,8 +206,20 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
     entranceWidth = 0.3,
     entranceHeight = 0.6,
     entranceOffset = 0,
-    entranceSide = "front",
+    entranceSide = "north",
+    interiorWalls = [],
   } = config;
+
+  const normalizedEntranceSide =
+    entranceSide === "front"
+      ? "north"
+      : entranceSide === "back"
+        ? "south"
+        : entranceSide === "left"
+          ? "west"
+          : entranceSide === "right"
+            ? "east"
+            : entranceSide;
 
   const group = new THREE.Group();
 
@@ -249,28 +319,28 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
   // outer shell walls (conditional)
   if (walls) {
     // Front wall (negative Z)
-    if (entranceSide === "front") {
+    if (normalizedEntranceSide === "north") {
       createWallWithEntrance(width, wallThickness, -depth / 2, 0, true);
     } else {
       createSolidWall(width, wallThickness, -depth / 2, 0);
     }
 
     // Back wall (positive Z)
-    if (entranceSide === "back") {
+    if (normalizedEntranceSide === "south") {
       createWallWithEntrance(width, wallThickness, depth / 2, 0, true);
     } else {
       createSolidWall(width, wallThickness, depth / 2, 0);
     }
 
     // Left wall (negative X)
-    if (entranceSide === "left") {
+    if (normalizedEntranceSide === "west") {
       createWallWithEntrance(wallThickness, depth, 0, -width / 2, false);
     } else {
       createSolidWall(wallThickness, depth, 0, -width / 2);
     }
 
     // Right wall (positive X)
-    if (entranceSide === "right") {
+    if (normalizedEntranceSide === "east") {
       createWallWithEntrance(wallThickness, depth, 0, width / 2, false);
     } else {
       createSolidWall(wallThickness, depth, 0, width / 2);
@@ -288,20 +358,20 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
   let stripeGeometry: THREE.BoxGeometry;
   let stripePosition: THREE.Vector3;
   
-  switch (entranceSide) {
-    case "front":
+  switch (normalizedEntranceSide) {
+    case "north":
       stripeGeometry = new THREE.BoxGeometry(width, height * 0.15, wallThickness * 1.2);
       stripePosition = new THREE.Vector3(0, height * 0.55, -depth / 2 - 0.01);
       break;
-    case "back":
+    case "south":
       stripeGeometry = new THREE.BoxGeometry(width, height * 0.15, wallThickness * 1.2);
       stripePosition = new THREE.Vector3(0, height * 0.55, depth / 2 + 0.01);
       break;
-    case "left":
+    case "west":
       stripeGeometry = new THREE.BoxGeometry(wallThickness * 1.2, height * 0.15, depth);
       stripePosition = new THREE.Vector3(-width / 2 - 0.01, height * 0.55, 0);
       break;
-    case "right":
+    case "east":
       stripeGeometry = new THREE.BoxGeometry(wallThickness * 1.2, height * 0.15, depth);
       stripePosition = new THREE.Vector3(width / 2 + 0.01, height * 0.55, 0);
       break;
@@ -310,6 +380,19 @@ export function createBuilding(config: BuildingConfig = {}): THREE.Group {
   const stripe = new THREE.Mesh(stripeGeometry, accentMaterial);
   stripe.position.copy(stripePosition);
   group.add(stripe);
+
+  // Add custom interior walls
+  if (interiorWalls && interiorWalls.length > 0) {
+    for (const wall of interiorWalls) {
+      const interiorWallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(wall.width, wall.height, wall.depth),
+        wallMaterial
+      );
+      interiorWallMesh.position.set(wall.position.x, wall.position.y, wall.position.z);
+      group.add(interiorWallMesh);
+      addCollidable(interiorWallMesh);
+    }
+  }
 
   group.position.copy(position);
   return group;
@@ -325,10 +408,11 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
     wallColor = 0x888888,
     accentColor = 0x5555ff,
     includeInteriorWalls = true,
+    interiorWalls,
     entranceWidth = 0.3,
     entranceHeight = 0.6,
     entranceOffset = 0,
-    entranceSide = "front",
+    entranceSide = "north",
   } = config;
 
   const group = new THREE.Group();
@@ -352,8 +436,20 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
     color: resolveColor(wallColor),
   });
 
-  // Interior structure (optional)
-  if (includeInteriorWalls) {
+  // Interior structure
+  if (interiorWalls && interiorWalls.length > 0) {
+    // Use custom interior walls if provided
+    for (const wall of interiorWalls) {
+      const interiorWallMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(wall.width, wall.height, wall.depth),
+        wallMaterial
+      );
+      interiorWallMesh.position.set(wall.position.x, wall.position.y, wall.position.z);
+      group.add(interiorWallMesh);
+      addCollidable(interiorWallMesh);
+    }
+  } else if (includeInteriorWalls) {
+    // Use default interior layout if no custom walls provided
     // Central gallery divider
     const centralWall = new THREE.Mesh(
       new THREE.BoxGeometry(wallThickness, height - 1, depth - 4),
@@ -604,7 +700,7 @@ export function fillMuseumWallsWithPaintings(cfg: MuseumWallPaintingsConfig): TH
 
 function createCheckerTexture(): THREE.CanvasTexture {
   const size = 128;
-  const segments = 8;
+  const segments = CHECKER_CELLS_PER_TILE;
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;

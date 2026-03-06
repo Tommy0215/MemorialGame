@@ -62,6 +62,7 @@ Create a new JSON file in `public/maps/`:
 
 ### Buildings
 Array of building objects with:
+- `name`: Optional label for identification and documentation
 - `position`: `{ x, y, z }` coordinates
 - `width`, `depth`, `height`: Dimensions
 - `wallThickness`: Wall thickness (default 0.5)
@@ -71,11 +72,12 @@ Array of building objects with:
 - `entranceWidth`: Width of entrance as fraction of building width (default 0.3)
 - `entranceHeight`: Height of entrance as fraction of building height (default 0.6)
 - `entranceOffset`: Horizontal offset from center in world units (default 0)
-- `entranceSide`: Which wall has the entrance - "front" (negative Z), "back" (positive Z), "left" (negative X), or "right" (positive X). Default is "front"
+- `entranceSide`: Which wall has the entrance - "north" (negative Z), "south" (positive Z), "west" (negative X), or "east" (positive X). Default is "north". Legacy aliases are supported: "front", "back", "left", "right"
+- `interiorWalls`: Array of custom interior walls/pillars (see Interior Walls section below)
 
 ### Museums
 Same as buildings, plus:
-- `includeInteriorWalls`: Boolean for interior structure (default true)
+- `includeInteriorWalls`: Boolean for interior structure (default true). Ignored if `interiorWalls` is provided
 
 ### Paintings
 - `url`: Image URL
@@ -94,6 +96,40 @@ Same as buildings, plus:
 
 ### Spawn Point
 - `x`, `y`, `z`: Player spawn coordinates
+
+### Interior Walls
+Custom interior walls and pillars for buildings and museums. Each wall object has:
+- `name`: Optional label for identification and documentation
+- `position`: `{ x, y, z }` coordinates relative to the building center
+- `width`: Width (X dimension) of the wall or pillar
+- `height`: Height (Y dimension) of the wall or pillar
+- `depth`: Depth (Z dimension) of the wall or pillar
+
+**Example:**
+```json
+"interiorWalls": [
+  {
+    "name": "Center divider",
+    "position": { "x": 0, "y": 2.5, "z": 5 },
+    "width": 0.5,
+    "height": 5,
+    "depth": 10
+  },
+  {
+    "name": "Support pillar 1",
+    "position": { "x": -3, "y": 3, "z": -5 },
+    "width": 0.7,
+    "height": 6,
+    "depth": 0.7
+  }
+]
+```
+
+Tips:
+- Use thin walls (width or depth = 0.5) for dividers
+- Use square dimensions (width = depth = 0.7) for pillars
+- Position Y is typically half the height for walls resting on the floor
+- All positions are relative to the building's center (0, 0, 0)
 
 ## Custom Building Types
 

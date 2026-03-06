@@ -20,6 +20,7 @@ let moveRight = false;
 
 let isRunning = false;
 let isSneaking = false;
+let isInspectorMode = false;
 
 let networkClient: NetworkClient | null = null;
 
@@ -38,6 +39,17 @@ let verticalVelocity = 0;
 const GRAVITY = 30;
 const JUMP_SPEED = 10;
 
+function getFacingDirectionLabel(): string {
+  const forward = new THREE.Vector3();
+  camera.getWorldDirection(forward);
+
+  if (Math.abs(forward.x) >= Math.abs(forward.z)) {
+    return forward.x >= 0 ? "East (+X)" : "West (-X)";
+  }
+
+  return forward.z >= 0 ? "South (+Z)" : "North (-Z)";
+}
+
 // create a simple red cube and add to scene at a given position
 function createRedBlock(position: THREE.Vector3): THREE.Mesh {
   const geometry = new THREE.BoxGeometry(1, 1, 1);
@@ -48,8 +60,8 @@ function createRedBlock(position: THREE.Vector3): THREE.Mesh {
   return block;
 }
 
-const BASE_SPEED = 40.0;
-const RUN_MULTIPLIER = 1.7;
+const BASE_SPEED = 50.0;
+const RUN_MULTIPLIER = 3.0;
 const SNEAK_MULTIPLIER = 0.4;
 
 const STAND_HEIGHT = 1.6;
@@ -59,12 +71,32 @@ const SNEAK_HEIGHT = 1.2;
 init();
 animate();
 
-async function loadSelectedMap(mapPath: string): Promise<void> {
+async function loadSelectedMap(mapPath: string, preservePosition = false): Promise<void> {
   currentMapPath = mapPath;
-  const spawn = await loadMapFromFile(scene, currentMapPath);
+  
+  // Store current position if preserving
   const controlsObject = getControlsObject();
-  controlsObject.position.copy(spawn.position);
-  controlsObject.lookAt(spawn.lookAt);
+  const savedPosition = preservePosition ? controlsObject.position.clone() : null;
+  const savedDirection = preservePosition ? new THREE.Vector3() : null;
+  if (preservePosition && savedDirection) {
+    camera.getWorldDirection(savedDirection);
+  }
+  
+  const spawn = await loadMapFromFile(scene, currentMapPath);
+  
+  // Restore or use spawn point
+  if (preservePosition && savedPosition) {
+    controlsObject.position.copy(savedPosition);
+    // Maintain the look direction
+    if (savedDirection) {
+      const lookAtPoint = savedPosition.clone().add(savedDirection);
+      controlsObject.lookAt(lookAtPoint);
+    }
+  } else {
+    controlsObject.position.copy(spawn.position);
+    controlsObject.lookAt(spawn.lookAt);
+  }
+  
   velocity.set(0, 0, 0);
   verticalVelocity = 0;
   canJump = true;
@@ -130,7 +162,7 @@ async function init(): Promise<void> {
         moveRight = true;
         break;
       case "KeyR":
-        isRunning = true;
+        isRunning = !isRunning;
         break;
       case "ShiftLeft":
         isSneaking = true;
@@ -145,13 +177,22 @@ async function init(): Promise<void> {
       case "KeyM":
         // Hot-reload map for development
         console.log("[Dev] Reloading map...");
-        loadSelectedMap(currentMapPath)
+        loadSelectedMap(currentMapPath, true)
           .then(() => {
             console.log("[Dev] Map reloaded successfully");
           })
           .catch((err) => {
             console.error("[Dev] Failed to reload map:", err);
           });
+        break;
+      case "KeyI":
+        // Toggle inspector mode (noclip)
+        isInspectorMode = !isInspectorMode;
+        console.log(
+          `[Dev] Inspector mode ${isInspectorMode ? "enabled" : "disabled"} (noclip ${
+            isInspectorMode ? "ON" : "OFF"
+          })`
+        );
         break;
       case "Space":
         if (canJump) {
@@ -195,7 +236,6 @@ async function init(): Promise<void> {
         moveRight = false;
         break;
       case "KeyR":
-        isRunning = false;
         break;
       case "ShiftLeft":
         isSneaking = false;
@@ -320,7 +360,9 @@ function animate(): void {
     verticalVelocity -= GRAVITY * delta;
     controlsObject.position.y += verticalVelocity * delta;
 
-    resolveCollisions(controlsObject.position);
+    if (!isInspectorMode) {
+      resolveCollisions(controlsObject.position);
+    }
 
     const targetHeight = isSneaking ? SNEAK_HEIGHT : STAND_HEIGHT;
 
@@ -343,10 +385,13 @@ function animate(): void {
     // Update coordinate display
     if (coordsElement && showCoordinates) {
       const pos = controlsObject.position;
+      const facing = getFacingDirectionLabel();
       coordsElement.innerHTML = `
         X: ${pos.x.toFixed(2)}<br>
         Y: ${pos.y.toFixed(2)}<br>
-        Z: ${pos.z.toFixed(2)}
+        Z: ${pos.z.toFixed(2)}<br>
+        Facing: ${facing}<br>
+        Inspector: ${isInspectorMode ? "ON" : "OFF"}
       `;
     }
   }
