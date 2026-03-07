@@ -210,7 +210,13 @@ export async function loadMapFromFile(
   mapPath: string
 ): Promise<{ position: THREE.Vector3; lookAt: THREE.Vector3 }> {
   console.log(`[MapLoader] Fetching map from: ${mapPath}`);
-  const response = await fetch(mapPath + '?t=' + Date.now()); // Cache bust for dev
+  const requestPath = import.meta.env.DEV ? `${mapPath}?t=${Date.now()}` : mapPath;
+  const response = await fetch(requestPath);
+  if (!response.ok) {
+    throw new Error(
+      `[MapLoader] Failed to fetch map (${response.status} ${response.statusText}): ${requestPath}`
+    );
+  }
   const mapConfig: MapConfig = await response.json();
   return loadMap(scene, mapConfig);
 }

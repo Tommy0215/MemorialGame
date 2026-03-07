@@ -129,7 +129,8 @@ const server = http.createServer((req, res) => {
   // for a GET request we just serve files from dist (including the login
   // page that lives in public/login.html and is copied over by vite).
   if (req.method === "GET") {
-    let filePath = req.url === "/" ? "/index.html" : req.url;
+    const parsedUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    let filePath = parsedUrl.pathname === "/" ? "/index.html" : parsedUrl.pathname;
     // special-case the login route so it resolves to login.html
     if (filePath === "/login") filePath = "/login.html";
     // Serve from the 'dist' directory which contains the built/bundled assets
