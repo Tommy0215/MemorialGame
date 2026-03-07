@@ -80,10 +80,22 @@ Same as buildings, plus:
 - `includeInteriorWalls`: Boolean for interior structure (default true). Ignored if `interiorWalls` is provided
 
 ### Paintings
-- `url`: Image URL
+- `name`: Optional label for identification (displayed in debug labels)
+- `url`: Image URL (supports PNG, JPG, WebP)
 - `position`: `{ x, y, z }` coordinates
 - `width`, `height`: Dimensions
-- `rotationY`: Rotation in radians
+- `fit`: `"contain"` (default) or `"cover"`
+- `unlit`: `true` (default, vibrant colors) or `false` (affected by scene lighting)
+- `frame`: `true` (default) or `false` - adds decorative border
+- `frameFitContent`: `true` (default) or `false` - when true, frame resizes to match actual painting dimensions after aspect ratio adjustment
+- `frameThickness`: Frame border width (default: `0.08`)
+- `frameColor`: Frame color as decimal, hex string, or RGB object (default: brown `0x8B4513`)
+- `facing`: `"north"`, `"south"`, `"east"`, or `"west"` (easier alternative to rotationY)
+- `rotationY`: Rotation in radians (alternative to facing)
+
+**Note:** Use either `facing` (simpler) or `rotationY` (precise control). If both are provided, `facing` takes priority.
+`fit: "contain"` preserves the full image without cropping. `fit: "cover"` fills the frame and center-crops overflow.
+Set `frameFitContent: true` to make frames hug the actual image dimensions (useful for paintings with different aspect ratios).
 
 ### Wall Paintings
 - `url`: Image URL
@@ -173,6 +185,18 @@ See the example maps:
 - `public/maps/campus.json` - Multiple buildings and a museum
 
 See `src/mapLoader.example.ts` for code examples.
+
+## Developer Tools & Debug Keys
+
+The game includes several debug controls for development:
+
+- **C**: Toggle coordinate display (X, Y, Z, facing direction, inspector/painting label status)
+- **I**: Toggle inspector mode (noclip - walk through walls)
+- **R**: Toggle running (faster movement)
+- **M**: Hot-reload the current map (preserves camera position and direction)
+- **P**: Toggle painting coordinate labels (displays x, y, z above each painting in the viewport)
+
+These controls are hidden from the HUD by default. Press **C** to show the debug overlay with current status.
 
 ## Benefits
 

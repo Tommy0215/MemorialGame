@@ -48,7 +48,7 @@
       "position": { "x": 0, "y": 0, "z": 30 },
       "width": 24,
       "depth": 32,
-      "height": 6,
+      "height": 8,
       "wallColor": 8947848,
       "accentColor": 5592575,
       "entranceWidth": 0.35,
@@ -84,6 +84,185 @@
           "depth": 24
         }
       ]
+    }
+  ],
+  "paintings": [
+    {
+      "name": "1",
+      "url": "/images/paintings/1.webp",
+      "position": { "x": -0.35, "y": 2.2, "z": 24 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "2",
+      "url": "/images/paintings/2.webp",
+      "position": { "x": -0.35, "y": 2.2, "z": 28 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "3",
+      "url": "/images/paintings/3.webp",
+      "position": { "x": -0.35, "y": 2.2, "z": 32 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "4",
+      "url": "/images/paintings/4.webp",
+      "position": { "x": -0.35, "y": 2.2, "z": 36 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "5",
+      "url": "/images/paintings/5.webp",
+      "position": { "x": -0.35, "y": 2.2, "z": 40 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "6",
+      "url": "/images/paintings/6.webp",
+      "position": { "x": 0.35, "y": 2.2, "z": 24 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "7",
+      "url": "/images/paintings/7.webp",
+      "position": { "x": 0.35, "y": 2.2, "z": 28 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "8",
+      "url": "/images/paintings/8.webp",
+      "position": { "x": 0.35, "y": 2.2, "z": 32 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "9",
+      "url": "/images/paintings/9.webp",
+      "position": { "x": 0.35, "y": 2.2, "z": 36 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "10",
+      "url": "/images/paintings/10.webp",
+      "position": { "x": 0.35, "y": 2.2, "z": 40 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "11",
+      "url": "/images/paintings/11.webp",
+      "position": { "x": -6.35, "y": 2.2, "z": 24 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "12",
+      "url": "/images/paintings/12.webp",
+      "position": { "x": -6.35, "y": 2.2, "z": 32 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "13",
+      "url": "/images/paintings/13.webp",
+      "position": { "x": -6.35, "y": 2.2, "z": 40 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "east"
+    },
+    {
+      "name": "14",
+      "url": "/images/paintings/14.webp",
+      "position": { "x": 6.35, "y": 2.2, "z": 24 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "15",
+      "url": "/images/paintings/15.webp",
+      "position": { "x": 6.35, "y": 2.2, "z": 32 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "16",
+      "url": "/images/paintings/16.webp",
+      "position": { "x": 6.35, "y": 2.2, "z": 40 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "west"
+    },
+    {
+      "name": "17",
+      "url": "/images/paintings/17.webp",
+      "position": { "x": -8, "y": 2.2, "z": 45.65 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "south"
+    },
+    {
+      "name": "18",
+      "url": "/images/paintings/18.webp",
+      "position": { "x": -4, "y": 2.2, "z": 45.65 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "south"
+    },
+    {
+      "name": "19",
+      "url": "/images/paintings/19.webp",
+      "position": { "x": 4, "y": 2.2, "z": 45.65 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "south"
+    },
+    {
+      "name": "20",
+      "url": "/images/paintings/20.webp",
+      "position": { "x": 8, "y": 2.2, "z": 45.65 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "south"
+    },
+    {
+      "name": "21",
+      "url": "/images/paintings/21.webp",
+      "position": { "x": -7, "y": 2.2, "z": 14.35 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "north"
+    },
+    {
+      "name": "22",
+      "url": "/images/paintings/22.webp",
+      "position": { "x": 7, "y": 2.2, "z": 14.35 },
+      "width": 2.6,
+      "height": 1.8,
+      "facing": "north"
+      
     }
   ],
   "spawnPoint": {

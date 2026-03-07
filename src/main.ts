@@ -21,8 +21,12 @@ let moveRight = false;
 let isRunning = false;
 let isSneaking = false;
 let isInspectorMode = false;
+let showPaintingCoords = false;
 
 let networkClient: NetworkClient | null = null;
+
+// Painting coordinate labels group
+let paintingLabelsGroup: THREE.Group;
 
 // Coordinate display element
 const coordsElement = document.getElementById("coordinates") as HTMLDivElement;
@@ -48,6 +52,96 @@ function getFacingDirectionLabel(): string {
   }
 
   return forward.z >= 0 ? "South (+Z)" : "North (-Z)";
+}
+
+/**
+ * Create a canvas-based 2D text sprite showing coordinates, filename, and optional name
+ */
+function createCoordLabel(position: THREE.Vector3, x: number, y: number, z: number, rotationY: number = 0, url?: string, name?: string): THREE.Sprite {
+  const canvas = document.createElement("canvas");
+  canvas.width = 512;
+  const filename = url ? url.split("/").pop() || url : undefined;
+  const lineCount = (name ? 1 : 0) + (filename ? 1 : 0) + 1; // +1 for coordinates
+  const lineHeight = 44;
+  const verticalPadding = 28;
+  canvas.height = verticalPadding * 2 + lineCount * lineHeight;
+
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("Could not get canvas context");
+
+  // Dark semi-transparent background
+  ctx.fillStyle = "rgba(0, 0, 0, 0.85)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Bright white text
+  ctx.fillStyle = "#ffffff";
+  ctx.textAlign = "center";
+
+  let yOffset = verticalPadding;
+
+  // Draw name if present
+  if (name) {
+    ctx.font = "bold 30px sans-serif";
+    ctx.textBaseline = "top";
+    ctx.fillText(name, canvas.width / 2, yOffset);
+    yOffset += lineHeight;
+  }
+
+  // Draw filename (extract from URL)
+  if (filename) {
+    ctx.font = "bold 24px sans-serif";
+    ctx.fillStyle = "#aaaaaa";
+    ctx.textBaseline = "top";
+    ctx.fillText(filename, canvas.width / 2, yOffset);
+    yOffset += lineHeight;
+  }
+
+  // Draw coordinates
+  ctx.font = "bold 34px monospace";
+  ctx.fillStyle = "#ffffff";
+  ctx.textBaseline = "top";
+  const coordText = `(${x.toFixed(2)}, ${y.toFixed(2)}, ${z.toFixed(2)})`;
+  ctx.fillText(coordText, canvas.width / 2, yOffset);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({ map: texture });
+  const sprite = new THREE.Sprite(material);
+
+  sprite.position.copy(position);
+  sprite.position.y += 0.5; // Offset above painting
+
+  // Offset label away from wall based on painting's facing direction
+  const offsetDistance = 3; // Pull label 3 units away from wall
+  sprite.position.x += Math.cos(rotationY) * offsetDistance;
+  sprite.position.z += Math.sin(rotationY) * offsetDistance;
+
+  const labelSizeMultiplier = 0.5;
+  const labelHeightScale = Math.max(1.8, 1.2 + lineCount * 0.45) * labelSizeMultiplier;
+  const aspectRatio = canvas.width / canvas.height;
+  sprite.scale.set(labelHeightScale * aspectRatio, labelHeightScale, 1);
+
+  return sprite;
+}
+
+/**
+ * Find all paintings in the scene and create coordinate labels for them
+ */
+function setupPaintingLabels(): void {
+  paintingLabelsGroup.clear();
+
+  scene.traverse((obj: THREE.Object3D) => {
+    if (obj.userData.isPainting) {
+      const pos = obj.position;
+      const rotation = obj.rotation.y;
+      const config = obj.userData.paintingConfig;
+      const name = config?.name;
+      const url = config?.url;
+      const label = createCoordLabel(pos, pos.x, pos.y, pos.z, rotation, url, name);
+      paintingLabelsGroup.add(label);
+    }
+  });
+
+  paintingLabelsGroup.visible = showPaintingCoords;
 }
 
 // create a simple red cube and add to scene at a given position
@@ -100,6 +194,9 @@ async function loadSelectedMap(mapPath: string, preservePosition = false): Promi
   velocity.set(0, 0, 0);
   verticalVelocity = 0;
   canJump = true;
+
+  // Setup painting labels for the newly loaded map
+  setupPaintingLabels();
 }
 
 async function init(): Promise<void> {
@@ -114,6 +211,7 @@ async function init(): Promise<void> {
   );
 
   renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.domElement.tabIndex = 0;
   document.body.appendChild(renderer.domElement);
@@ -123,6 +221,10 @@ async function init(): Promise<void> {
   controls = new PointerLockControls(camera, document.body);
   const controlsObject = getControlsObject();
   scene.add(controlsObject);
+
+  // Initialize painting labels group
+  paintingLabelsGroup = new THREE.Group();
+  scene.add(paintingLabelsGroup);
 
   // Load map from JSON file
   try {
@@ -192,6 +294,14 @@ async function init(): Promise<void> {
           `[Dev] Inspector mode ${isInspectorMode ? "enabled" : "disabled"} (noclip ${
             isInspectorMode ? "ON" : "OFF"
           })`
+        );
+        break;
+      case "KeyP":
+        // Toggle painting coordinate labels
+        showPaintingCoords = !showPaintingCoords;
+        paintingLabelsGroup.visible = showPaintingCoords;
+        console.log(
+          `[Dev] Painting labels ${showPaintingCoords ? "visible" : "hidden"}`
         );
         break;
       case "Space":
@@ -391,7 +501,8 @@ function animate(): void {
         Y: ${pos.y.toFixed(2)}<br>
         Z: ${pos.z.toFixed(2)}<br>
         Facing: ${facing}<br>
-        Inspector: ${isInspectorMode ? "ON" : "OFF"}
+        Inspector: ${isInspectorMode ? "ON" : "OFF"}<br>
+        Painting Labels: ${showPaintingCoords ? "ON" : "OFF"}
       `;
     }
   }

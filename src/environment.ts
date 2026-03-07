@@ -137,11 +137,19 @@ export type MuseumConfig = {
 };
 
 export type PaintingConfig = {
+  name?: string;
   url: string;
   position: THREE.Vector3;
   width?: number;
   height?: number;
+  fit?: "contain" | "cover";
+  unlit?: boolean;
+  frame?: boolean;
+  frameFitContent?: boolean;
+  frameThickness?: number;
+  frameColor?: ColorInput;
   rotationY?: number;
+  facing?: "north" | "south" | "east" | "west";
 };
 
 export type WallSide = "left" | "right" | "front" | "back";
@@ -495,30 +503,181 @@ export function createMuseum(config: MuseumConfig = {}): THREE.Group {
 }
 
 export function createPainting(config: PaintingConfig): THREE.Mesh {
-  const { url, position, width = 2, height = 1.5, rotationY = 0 } = config;
+  const {
+    url,
+    position,
+    width = 2,
+    height = 1.5,
+    fit = "contain",
+    unlit = true,
+    frame = true,
+    frameFitContent = true,
+    frameThickness = 0.08,
+    frameColor = 0x8B4513,
+    rotationY,
+    facing,
+  } = config;
+
+  // Convert facing direction to rotationY if specified
+  let finalRotationY = rotationY ?? 0;
+  if (facing) {
+    switch (facing) {
+      case "north":
+        finalRotationY = 0;
+        break;
+      case "east":
+        finalRotationY = Math.PI / 2;
+        break;
+      case "south":
+        finalRotationY = Math.PI;
+        break;
+      case "west":
+        finalRotationY = -Math.PI / 2;
+        break;
+    }
+  }
 
   const geometry = new THREE.PlaneGeometry(width, height);
-  const material = new THREE.MeshStandardMaterial({
-    color: 0xffffff,
-    side: THREE.DoubleSide,
-  });
+  const material = unlit
+    ? new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+        transparent: false,
+        opacity: 1,
+        alphaTest: 0,
+      })
+    : new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        side: THREE.DoubleSide,
+        transparent: false,
+        opacity: 1,
+        alphaTest: 0,
+      });
 
   const painting = new THREE.Mesh(geometry, material);
   painting.position.copy(position);
-  painting.rotation.y = rotationY;
+  painting.rotation.y = finalRotationY;
+  painting.userData.isPainting = true;
+  painting.userData.paintingConfig = config;
 
   const textureLoader = new THREE.TextureLoader();
   textureLoader.load(
     url,
     (texture) => {
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.premultiplyAlpha = false;
       material.map = texture;
+      material.transparent = false;
+      material.opacity = 1;
       material.needsUpdate = true;
+
+      const image = texture.image as { width?: number; height?: number } | undefined;
+      const imageWidth = image?.width ?? 0;
+      const imageHeight = image?.height ?? 0;
+
+      if (imageWidth > 0 && imageHeight > 0) {
+        const imageAspect = imageWidth / imageHeight;
+        const targetAspect = width / height;
+
+        if (fit === "cover") {
+          texture.repeat.set(1, 1);
+          texture.offset.set(0, 0);
+
+          // Keep frame size and crop texture to fill while preserving image aspect ratio.
+          if (imageAspect > targetAspect) {
+            const repeatX = targetAspect / imageAspect;
+            texture.repeat.x = repeatX;
+            texture.offset.x = (1 - repeatX) / 2;
+          } else if (imageAspect < targetAspect) {
+            const repeatY = imageAspect / targetAspect;
+            texture.repeat.y = repeatY;
+            texture.offset.y = (1 - repeatY) / 2;
+          }
+
+          texture.needsUpdate = true;
+        } else {
+          texture.repeat.set(1, 1);
+          texture.offset.set(0, 0);
+
+          let fittedWidth = width;
+          let fittedHeight = height;
+
+          // Fit image inside configured width/height while preserving original aspect ratio.
+          if (imageAspect > targetAspect) {
+            fittedHeight = width / imageAspect;
+          } else {
+            fittedWidth = height * imageAspect;
+          }
+
+          painting.geometry.dispose();
+          painting.geometry = new THREE.PlaneGeometry(fittedWidth, fittedHeight);
+
+          // Update frame to fit actual content dimensions if frameFitContent is enabled
+          if (frame && frameFitContent) {
+            createOrUpdateFrame(fittedWidth, fittedHeight);
+          }
+        }
+      }
     },
     undefined,
     () => {
       // If loading fails, keep the plain white material so it still renders.
     }
   );
+
+  // Helper function to create/update frame pieces
+  const createOrUpdateFrame = (frameWidth: number, frameHeight: number) => {
+    const frameDepth = 0.05;
+    const frameOffset = 0.001;
+    const frameMaterial = new THREE.MeshStandardMaterial({
+      color: resolveColor(frameColor),
+    });
+
+    // Remove existing frames if they exist
+    const existingFrames = painting.children.filter((c) => c.userData.isFrame);
+    existingFrames.forEach((f) => painting.remove(f));
+
+    // Top frame
+    const topFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(frameWidth + frameThickness * 2, frameThickness, frameDepth),
+      frameMaterial
+    );
+    topFrame.position.set(0, frameHeight / 2 + frameThickness / 2, -frameOffset);
+    topFrame.userData.isFrame = true;
+    painting.add(topFrame);
+
+    // Bottom frame
+    const bottomFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(frameWidth + frameThickness * 2, frameThickness, frameDepth),
+      frameMaterial
+    );
+    bottomFrame.position.set(0, -frameHeight / 2 - frameThickness / 2, -frameOffset);
+    bottomFrame.userData.isFrame = true;
+    painting.add(bottomFrame);
+
+    // Left frame
+    const leftFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, frameHeight, frameDepth),
+      frameMaterial
+    );
+    leftFrame.position.set(-frameWidth / 2 - frameThickness / 2, 0, -frameOffset);
+    leftFrame.userData.isFrame = true;
+    painting.add(leftFrame);
+
+    // Right frame
+    const rightFrame = new THREE.Mesh(
+      new THREE.BoxGeometry(frameThickness, frameHeight, frameDepth),
+      frameMaterial
+    );
+    rightFrame.position.set(frameWidth / 2 + frameThickness / 2, 0, -frameOffset);
+    rightFrame.userData.isFrame = true;
+    painting.add(rightFrame);
+  };
+
+  // Add initial frame if enabled
+  if (frame) {
+    createOrUpdateFrame(width, height);
+  }
 
   return painting;
 }

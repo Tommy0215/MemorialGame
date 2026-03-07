@@ -33,11 +33,19 @@ function toDecimalColor(color: ColorInput): number {
 }
 
 export interface PaintingConfig {
+  name?: string;
   url: string;
   position: THREE.Vector3;
   width?: number;
   height?: number;
+  fit?: "contain" | "cover";
+  unlit?: boolean;
+  frame?: boolean;
+  frameFitContent?: boolean;
+  frameThickness?: number;
+  frameColor?: ColorInput;
   rotationY?: number;
+  facing?: "north" | "south" | "east" | "west";
 }
 
 export interface SimpleObjectConfig {
