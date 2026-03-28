@@ -16,6 +16,18 @@
       "includeInteriorWalls": true
     }
   ],
+  "chest": {
+    "enabled": true,
+    "museumIndex": 0,
+    "entranceDistance": 2.6,
+    "interactDistance": 4.5,
+    "rotationY": 0,
+    "item": {
+      "type": "icosahedron",
+      "color": "#3de7ff",
+      "size": 0.18
+    }
+  },
 
   "spawnPoint": {
     "x": 0,

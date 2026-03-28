@@ -61,6 +61,20 @@ export interface SimpleObjectConfig {
   rotationZ?: number;
 }
 
+export interface ChestConfig {
+  enabled?: boolean;
+  museumIndex?: number;
+  position?: { x: number; y: number; z: number };
+  rotationY?: number;
+  entranceDistance?: number;
+  interactDistance?: number;
+  item?: {
+    type?: "icosahedron" | "box" | "sphere" | "cylinder";
+    color?: ColorInput;
+    size?: number;
+  };
+}
+
 // Map structure definition
 export interface MapConfig {
   name: string;
@@ -70,6 +84,7 @@ export interface MapConfig {
   paintings?: PaintingConfig[];
   wallPaintings?: WallPaintingConfig[];
   objects?: SimpleObjectConfig[];
+  chest?: ChestConfig;
   spawnPoint?: { x: number; y: number; z: number; lookAt?: { x: number; y: number; z: number } };
 }
 
@@ -99,6 +114,7 @@ export function registerBuildingType(
  */
 export function loadMap(scene: THREE.Scene, mapConfig: MapConfig): { position: THREE.Vector3; lookAt: THREE.Vector3 } {
   clearCollidables();
+  scene.userData.mapConfig = mapConfig;
 
   // Clear existing environment objects (optional - keeps lights and player)
   const objectsToRemove: THREE.Object3D[] = [];
@@ -127,6 +143,8 @@ export function loadMap(scene: THREE.Scene, mapConfig: MapConfig): { position: T
   mapConfig.museums?.forEach((museumConfig) => {
     const museum = createMuseum(museumConfig);
     museum.userData.isEnvironment = true;
+    museum.userData.isMuseum = true;
+    museum.userData.mapConfig = museumConfig;
     scene.add(museum);
   });
 

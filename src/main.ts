@@ -1,9 +1,9 @@
 import * as THREE from "three";
 import { PointerLockControls } from "three/examples/jsm/controls/PointerLockControls.js";
-import { createFloor, createMuseum, fillMuseumWallsWithPaintings } from "./environment";
-import { resolveCollisions } from "./collision";
+import { createFloor, createMuseum, fillMuseumWallsWithPaintings, type MuseumConfig } from "./environment";
+import { addCollidable, resolveCollisions } from "./collision";
 import { createNetworkClient, type NetworkClient } from "./network";
-import { loadMapFromFile } from "./mapLoader";
+import { loadMapFromFile, type ChestConfig, type MapConfig } from "./mapLoader";
 
 let scene: THREE.Scene;
 let camera: THREE.PerspectiveCamera;
@@ -30,6 +30,179 @@ let paintingLabelsGroup: THREE.Group;
 
 // Coordinate display element
 const coordsElement = document.getElementById("coordinates") as HTMLDivElement;
+const crosshairElement = document.getElementById("crosshair") as HTMLDivElement | null;
+const slot1Element = document.getElementById("slot-1") as HTMLDivElement | null;
+const slot2Element = document.getElementById("slot-2") as HTMLDivElement | null;
+
+type ItemType = "icosahedron" | "box" | "sphere" | "cylinder";
+
+type InventoryItem = {
+  itemType: ItemType;
+  color: string;
+};
+
+type SlotPreviewState = {
+  key: string;
+  renderer: THREE.WebGLRenderer;
+  scene: THREE.Scene;
+  camera: THREE.PerspectiveCamera;
+  mesh: THREE.Mesh;
+  baseY: number;
+  phase: number;
+};
+
+let activeToolbarSlot: 1 | 2 = 1;
+const toolbarSlots: [InventoryItem | null, InventoryItem | null] = [null, null];
+const slotPreviewStates: [SlotPreviewState | null, SlotPreviewState | null] = [null, null];
+let slotPreviewAnimationRunning = false;
+
+const SLOT_PREVIEW_SIZE = 52;
+const SLOT_PREVIEW_SPIN_SPEED = 0.02;
+const SLOT_PREVIEW_FLOAT_SPEED = 1.7;
+const SLOT_PREVIEW_FLOAT_AMPLITUDE = 0.07;
+
+function getSlotElement(slot: 1 | 2): HTMLDivElement | null {
+  return slot === 1 ? slot1Element : slot2Element;
+}
+
+function createPreviewGeometry(itemType: ItemType, size: number): THREE.BufferGeometry {
+  switch (itemType) {
+    case "box":
+      return new THREE.BoxGeometry(size * 2, size * 2, size * 2);
+    case "sphere":
+      return new THREE.SphereGeometry(size, 20, 12);
+    case "cylinder":
+      return new THREE.CylinderGeometry(size * 0.8, size * 0.8, size * 2, 16);
+    case "icosahedron":
+    default:
+      return new THREE.IcosahedronGeometry(size, 0);
+  }
+}
+
+function disposeSlotPreview(slotNumber: 1 | 2): void {
+  const idx = slotNumber - 1;
+  const state = slotPreviewStates[idx];
+  if (!state) return;
+
+  state.mesh.geometry.dispose();
+  (state.mesh.material as THREE.Material).dispose();
+  state.renderer.dispose();
+  slotPreviewStates[idx] = null;
+}
+
+function getOrCreateSlotPreview(slotNumber: 1 | 2, item: InventoryItem): HTMLCanvasElement {
+  const idx = slotNumber - 1;
+  const key = `${item.itemType}|${item.color}`;
+  const existing = slotPreviewStates[idx];
+  if (existing && existing.key === key) {
+    return existing.renderer.domElement;
+  }
+
+  disposeSlotPreview(slotNumber);
+
+  const previewScene = new THREE.Scene();
+  const previewCamera = new THREE.PerspectiveCamera(45, 1, 0.1, 10);
+  previewCamera.position.set(0, 0.08, 2.15);
+  previewCamera.lookAt(0, 0, 0);
+
+  const previewRenderer = new THREE.WebGLRenderer({ alpha: true, antialias: true });
+  previewRenderer.outputColorSpace = THREE.SRGBColorSpace;
+  previewRenderer.setSize(SLOT_PREVIEW_SIZE, SLOT_PREVIEW_SIZE);
+  previewRenderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  previewRenderer.domElement.className = "slot-icon";
+
+  const itemColor = new THREE.Color(item.color as THREE.ColorRepresentation);
+  const material = new THREE.MeshStandardMaterial({
+    color: itemColor,
+    emissive: itemColor.clone().multiplyScalar(0.3),
+    emissiveIntensity: 1,
+    roughness: 0.2,
+    metalness: 0.25,
+  });
+  const mesh = new THREE.Mesh(createPreviewGeometry(item.itemType, 0.42), material);
+  mesh.position.y = 0;
+  previewScene.add(mesh);
+
+  const ambient = new THREE.AmbientLight(0xffffff, 0.7);
+  previewScene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0xffffff, 1.45);
+  keyLight.position.set(1.7, 2.1, 2.3);
+  previewScene.add(keyLight);
+
+  const fill = new THREE.DirectionalLight(0x9bb6ff, 0.45);
+  fill.position.set(-1.5, 0.5, 1.4);
+  previewScene.add(fill);
+
+  const rim = new THREE.DirectionalLight(itemColor, 0.8);
+  rim.position.set(-1.9, 1.1, -2.3);
+  previewScene.add(rim);
+
+  slotPreviewStates[idx] = {
+    key,
+    renderer: previewRenderer,
+    scene: previewScene,
+    camera: previewCamera,
+    mesh,
+    baseY: 0,
+    phase: Math.random() * Math.PI * 2,
+  };
+
+  if (!slotPreviewAnimationRunning) {
+    slotPreviewAnimationRunning = true;
+    animateSlotPreviews();
+  }
+
+  return previewRenderer.domElement;
+}
+
+function animateSlotPreviews(): void {
+  let hasActivePreview = false;
+  const t = performance.now() * 0.001;
+
+  slotPreviewStates.forEach((state) => {
+    if (!state) return;
+    hasActivePreview = true;
+
+    state.mesh.rotation.y += SLOT_PREVIEW_SPIN_SPEED;
+    state.mesh.rotation.x = Math.sin(t * 1.2 + state.phase) * 0.15;
+    state.mesh.position.y =
+      state.baseY +
+      Math.sin(t * SLOT_PREVIEW_FLOAT_SPEED + state.phase) * SLOT_PREVIEW_FLOAT_AMPLITUDE;
+    state.renderer.render(state.scene, state.camera);
+  });
+
+  if (!hasActivePreview) {
+    slotPreviewAnimationRunning = false;
+    return;
+  }
+
+  requestAnimationFrame(animateSlotPreviews);
+}
+
+function refreshToolbarUI(): void {
+  ([1, 2] as const).forEach((slotNumber) => {
+    const el = getSlotElement(slotNumber);
+    if (!el) return;
+
+    const item = toolbarSlots[slotNumber - 1];
+    el.classList.toggle("has-item", !!item);
+    el.textContent = "";
+    if (item) {
+      const previewCanvas = getOrCreateSlotPreview(slotNumber, item);
+      el.appendChild(previewCanvas);
+    } else {
+      disposeSlotPreview(slotNumber);
+    }
+  });
+}
+
+function setActiveToolbarSlot(slot: 1 | 2): void {
+  activeToolbarSlot = slot;
+  slot1Element?.classList.toggle("active", slot === 1);
+  slot2Element?.classList.toggle("active", slot === 2);
+  refreshToolbarUI();
+}
 
 // Dev mode: toggle coordinates display with 'C' key
 let showCoordinates = false;
@@ -37,6 +210,25 @@ let showCoordinates = false;
 const velocity = new THREE.Vector3();
 const direction = new THREE.Vector3();
 let prevTime = performance.now();
+
+const interactRaycaster = new THREE.Raycaster();
+const interactScreenCenter = new THREE.Vector2(0, 0);
+
+let chestGroup: THREE.Group | null = null;
+let chestLidPivot: THREE.Group | null = null;
+let chestItemMesh: THREE.Mesh | null = null;
+let chestInteractiveMesh: THREE.Mesh | null = null;
+let chestIsOpen = false;
+let chestLidAngle = 0;
+let chestHasItem = false;
+let chestItemType: ItemType = "icosahedron";
+let chestItemColor = "#3de7ff";
+
+const CHEST_INTERACT_DISTANCE = 4.5;
+const CHEST_OUTSIDE_DISTANCE = 2.6;
+const CHEST_OPEN_ANGLE = -Math.PI * 0.55;
+
+let chestInteractDistance = CHEST_INTERACT_DISTANCE;
 
 let canJump = true;
 let verticalVelocity = 0;
@@ -197,6 +389,241 @@ async function loadSelectedMap(mapPath: string, preservePosition = false): Promi
 
   // Setup painting labels for the newly loaded map
   setupPaintingLabels();
+
+  // Place chest at the active museum entrance
+  setupMuseumEntranceChest();
+}
+
+function normalizeEntranceSide(side?: string): "north" | "south" | "east" | "west" {
+  if (side === "front") return "north";
+  if (side === "back") return "south";
+  if (side === "left") return "west";
+  if (side === "right") return "east";
+  if (side === "south" || side === "east" || side === "west") return side;
+  return "north";
+}
+
+function getMuseumEntrancePlacement(
+  config: Partial<MuseumConfig>,
+  fallbackPosition: THREE.Vector3,
+  outsideDistance: number
+): { position: THREE.Vector3; facing: THREE.Vector3 } {
+  const center = config.position
+    ? new THREE.Vector3(config.position.x, config.position.y, config.position.z)
+    : fallbackPosition.clone();
+
+  const width = config.width ?? 24;
+  const depth = config.depth ?? 32;
+  const entranceOffset = config.entranceOffset ?? 0;
+  const entranceSide = normalizeEntranceSide(config.entranceSide as string | undefined);
+
+  const position = center.clone();
+  const facing = new THREE.Vector3(0, 0, 1);
+
+  switch (entranceSide) {
+    case "north":
+      position.x = center.x + entranceOffset;
+      position.z = center.z - depth / 2 - outsideDistance;
+      facing.set(0, 0, 1);
+      break;
+    case "south":
+      position.x = center.x + entranceOffset;
+      position.z = center.z + depth / 2 + outsideDistance;
+      facing.set(0, 0, -1);
+      break;
+    case "west":
+      position.x = center.x - width / 2 - outsideDistance;
+      position.z = center.z + entranceOffset;
+      facing.set(1, 0, 0);
+      break;
+    case "east":
+      position.x = center.x + width / 2 + outsideDistance;
+      position.z = center.z + entranceOffset;
+      facing.set(-1, 0, 0);
+      break;
+  }
+
+  position.y = center.y;
+  return { position, facing };
+}
+
+function createChest(
+  position: THREE.Vector3,
+  facing: THREE.Vector3,
+  chestConfig?: ChestConfig
+): void {
+  chestGroup = new THREE.Group();
+  chestGroup.userData.isEnvironment = true;
+  chestGroup.userData.isChest = true;
+
+  const woodMaterial = new THREE.MeshStandardMaterial({ color: 0x6b3f1f, roughness: 0.85, metalness: 0.05 });
+  const bandMaterial = new THREE.MeshStandardMaterial({ color: 0xc8a34a, roughness: 0.35, metalness: 0.7 });
+  const itemColor = chestConfig?.item?.color ?? 0x3de7ff;
+  const itemType: ItemType = chestConfig?.item?.type ?? "icosahedron";
+  const itemSize = Math.max(0.05, chestConfig?.item?.size ?? 0.18);
+  chestItemType = itemType;
+  chestItemColor =
+    typeof itemColor === "string"
+      ? itemColor
+      : `#${new THREE.Color(itemColor as THREE.ColorRepresentation).getHexString()}`;
+  const itemColorThree = new THREE.Color(itemColor as THREE.ColorRepresentation);
+  const gemMaterial = new THREE.MeshStandardMaterial({
+    color: itemColorThree,
+    emissive: itemColorThree.clone().multiplyScalar(0.35),
+    emissiveIntensity: 1.2,
+    roughness: 0.2,
+    metalness: 0.1,
+  });
+
+  const base = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.7, 0.8), woodMaterial);
+  base.position.set(0, 0.35, 0);
+  base.userData.isChestInteractable = true;
+  chestGroup.add(base);
+  addCollidable(base);
+  chestInteractiveMesh = base;
+
+  const lidBand = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.08, 0.08), bandMaterial);
+  lidBand.position.set(0, 0.74, 0.38);
+  chestGroup.add(lidBand);
+
+  chestLidPivot = new THREE.Group();
+  chestLidPivot.position.set(0, 0.72, -0.4);
+
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.35, 0.8), woodMaterial);
+  lid.position.set(0, 0.175, 0.4);
+  chestLidPivot.add(lid);
+
+  const lidFrontBand = new THREE.Mesh(new THREE.BoxGeometry(1.22, 0.08, 0.08), bandMaterial);
+  lidFrontBand.position.set(0, 0.175, 0.78);
+  chestLidPivot.add(lidFrontBand);
+
+  chestGroup.add(chestLidPivot);
+
+  const itemGeometry = createPreviewGeometry(itemType, itemSize);
+
+  chestItemMesh = new THREE.Mesh(itemGeometry, gemMaterial);
+  chestItemMesh.position.set(0, 0.93, 0);
+  chestItemMesh.visible = false;
+  chestGroup.add(chestItemMesh);
+
+  chestGroup.position.copy(position);
+  if (typeof chestConfig?.rotationY === "number") {
+    chestGroup.rotation.y = chestConfig.rotationY;
+  } else {
+    chestGroup.lookAt(position.clone().add(facing));
+  }
+  scene.add(chestGroup);
+
+  chestIsOpen = false;
+  chestHasItem = true;
+  chestLidAngle = 0;
+  if (chestLidPivot) {
+    chestLidPivot.rotation.x = 0;
+  }
+}
+
+function setupMuseumEntranceChest(): void {
+  if (chestGroup) {
+    scene.remove(chestGroup);
+  }
+  chestGroup = null;
+  chestLidPivot = null;
+  chestItemMesh = null;
+  chestInteractiveMesh = null;
+  chestIsOpen = false;
+  chestHasItem = false;
+  chestLidAngle = 0;
+  chestInteractDistance = CHEST_INTERACT_DISTANCE;
+
+  const mapConfig = (scene.userData.mapConfig ?? {}) as Partial<MapConfig>;
+  const chestConfig = mapConfig.chest;
+  if (chestConfig?.enabled === false) {
+    return;
+  }
+
+  const museums: THREE.Object3D[] = [];
+  scene.traverse((obj) => {
+    if (obj.userData.isMuseum) {
+      museums.push(obj);
+    }
+  });
+
+  const museumIndex = Math.max(0, chestConfig?.museumIndex ?? 0);
+  const museum = museums[museumIndex];
+  if (!museum && !chestConfig?.position) {
+    return;
+  }
+
+  if (typeof chestConfig?.interactDistance === "number") {
+    chestInteractDistance = Math.max(1, chestConfig.interactDistance);
+  }
+
+  if (chestConfig?.position) {
+    createChest(
+      new THREE.Vector3(
+        chestConfig.position.x,
+        chestConfig.position.y,
+        chestConfig.position.z
+      ),
+      new THREE.Vector3(0, 0, 1),
+      chestConfig
+    );
+    return;
+  }
+
+  const museumConfig = (museum.userData.mapConfig ?? {}) as Partial<MuseumConfig>;
+  const placement = getMuseumEntrancePlacement(
+    museumConfig,
+    museum.position.clone(),
+    Math.max(0.5, chestConfig?.entranceDistance ?? CHEST_OUTSIDE_DISTANCE)
+  );
+  createChest(placement.position, placement.facing, chestConfig);
+}
+
+function tryInteractWithChest(): void {
+  if (!controls.isLocked || !chestInteractiveMesh) {
+    return;
+  }
+
+  interactRaycaster.setFromCamera(interactScreenCenter, camera);
+  const hits = interactRaycaster.intersectObject(chestInteractiveMesh, false);
+  if (hits.length === 0 || hits[0].distance > chestInteractDistance) {
+    return;
+  }
+
+  chestIsOpen = !chestIsOpen;
+  if (chestItemMesh) {
+    chestItemMesh.visible = chestIsOpen && chestHasItem;
+  }
+}
+
+function tryGrabChestItem(): boolean {
+  if (!controls.isLocked || !chestIsOpen || !chestHasItem || !chestItemMesh) {
+    return false;
+  }
+
+  interactRaycaster.setFromCamera(interactScreenCenter, camera);
+  const hits = interactRaycaster.intersectObject(chestItemMesh, false);
+  if (hits.length === 0 || hits[0].distance > chestInteractDistance) {
+    return false;
+  }
+
+  const slotIndex = activeToolbarSlot - 1;
+  if (toolbarSlots[slotIndex]) {
+    console.log(`[Chest] Slot ${activeToolbarSlot} is occupied.`);
+    return true;
+  }
+
+  toolbarSlots[slotIndex] = {
+    itemType: chestItemType,
+    color: chestItemColor,
+  };
+  refreshToolbarUI();
+
+  chestHasItem = false;
+  chestItemMesh.visible = false;
+  console.log(`[Chest] Picked up item into slot ${activeToolbarSlot}.`);
+  return true;
 }
 
 async function init(): Promise<void> {
@@ -222,6 +649,25 @@ async function init(): Promise<void> {
   const controlsObject = getControlsObject();
   scene.add(controlsObject);
 
+  setActiveToolbarSlot(activeToolbarSlot);
+  refreshToolbarUI();
+
+  if (crosshairElement) {
+    crosshairElement.style.display = "none";
+  }
+
+  controls.addEventListener("lock", () => {
+    if (crosshairElement) {
+      crosshairElement.style.display = "block";
+    }
+  });
+
+  controls.addEventListener("unlock", () => {
+    if (crosshairElement) {
+      crosshairElement.style.display = "none";
+    }
+  });
+
   // Initialize painting labels group
   paintingLabelsGroup = new THREE.Group();
   scene.add(paintingLabelsGroup);
@@ -241,12 +687,27 @@ async function init(): Promise<void> {
   networkClient = createNetworkClient(scene);
 
   const onClick = () => {
-    controls.lock();
+    if (!controls.isLocked) {
+      controls.lock();
+      return;
+    }
+
+    if (tryGrabChestItem()) {
+      return;
+    }
+
+    tryInteractWithChest();
   };
   document.addEventListener("click", onClick);
 
   const onKeyDown = (event: KeyboardEvent) => {
     switch (event.code) {
+      case "Digit1":
+        setActiveToolbarSlot(1);
+        break;
+      case "Digit2":
+        setActiveToolbarSlot(2);
+        break;
       case "ArrowUp":
       case "KeyW":
         moveForward = true;
@@ -505,6 +966,18 @@ function animate(): void {
         Painting Labels: ${showPaintingCoords ? "ON" : "OFF"}
       `;
     }
+  }
+
+  if (chestLidPivot) {
+    const targetAngle = chestIsOpen ? CHEST_OPEN_ANGLE : 0;
+    const lidLerp = Math.min(12 * delta, 1);
+    chestLidAngle += (targetAngle - chestLidAngle) * lidLerp;
+    chestLidPivot.rotation.x = chestLidAngle;
+  }
+
+  if (chestItemMesh && chestIsOpen && chestHasItem) {
+    chestItemMesh.rotation.y += delta * 2.2;
+    chestItemMesh.position.y = 0.93 + Math.sin(time * 0.007) * 0.04;
   }
 
   prevTime = time;
